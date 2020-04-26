@@ -16,14 +16,14 @@ const throatFormants5_29 = [
 // formant 2 frequencies (throat) 48..53
 const throatFormants48_53 = [72, 39, 31, 43, 30, 34];
 
-function trans(mem39212, mem39213) {
-  return (((mem39212 * mem39213) >> 8) & 0xFF) << 1;
+function trans(factor, initialFrequency) {
+  return (((factor * initialFrequency) >> 8) & 0xFF) << 1;
 }
 
 /**
  * SAM's voice can be altered by changing the frequencies of the
- * mouth formant (F1) and the throat formant (F2). Only the voiced
- * phonemes (5-29 and 48-53) are altered.
+ * mouth formant (F1) and the throat formant (F2). Only the
+ * vowel/diphthong and sonorant phonemes (5-29 and 48-53) are altered.
  *
  * This returns the three base frequency arrays.
  *

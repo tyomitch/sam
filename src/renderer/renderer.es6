@@ -156,42 +156,40 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
    * reset at the beginning of each glottal pulse.
    */
   function ProcessFrames(frameCount, speed, frequency, pitches, amplitude, sampledConsonantFlag) {
-    const RenderSample = (mem66, consonantFlag, mem49) => {
+    const RenderSample = (lastSampleOffset, consonantFlag, mem49) => {
       // mem49 == current phoneme's index - unsigned char
 
       // mask low three bits and subtract 1 get value to
       // convert 0 bits on unvoiced samples.
       const kind = (consonantFlag & 7) - 1;
 
-      // determine which offset to use from table { 0x18, 0x1A, 0x17, 0x17, 0x17 }
-      // T, S, Z                0          0x18
-      // CH, J, SH, ZH          1          0x1A
-      // P, F*, V, TH, DH       2          0x17
-      // /H                     3          0x17
-      // /X                     4          0x17
+      // determine which value to use from table { 0x18, 0x1A, 0x17, 0x17, 0x17 }
+      // T', S, Z               0          0x18   coronal
+      // CH', J', SH, ZH        1          0x1A   palato-alveolar
+      // P', F, V, TH, DH       2          0x17   [labio]dental
+      // /H                     3          0x17   palatal
+      // /X                     4          0x17   glottal
 
-      const hi = kind * 256 & 0xFFFF; // unsigned short
-      let off
-      // voiced sample?
-      const pitch = consonantFlag & 248; // unsigned char
+      const samplePage = kind * 256 & 0xFFFF; // unsigned short
+      let off = consonantFlag & 248; // unsigned char
 
-      function renderSample (index1, value1, index2, value2) {
+      function renderSample (index1, value1, index0, value0) {
         let bit = 8;
-        let sample = sampleTable[hi+off]
+        let sample = sampleTable[samplePage+off]
         do {
           if ((sample & 128) !== 0) {
             Output(index1, value1);
           } else {
-            Output(index2, value2);
+            Output(index0, value0);
           }
           sample <<= 1;
         } while(--bit);
       }
 
-      if(pitch === 0) {
+      if(off === 0) {
         // voiced phoneme: Z*, ZH, V*, DH
         let phase1 = (pitches[mem49 & 0xFF] >> 4) ^ 255 & 0xFF; // unsigned char
-        off = mem66 & 0xFF; // unsigned char
+        off = lastSampleOffset & 0xFF; // unsigned char
         do {
           renderSample(3, 26, 4, 6)
           off++;
@@ -206,7 +204,7 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
         renderSample(2, 5, 1, value0)
       } while (++off & 0xFF);
 
-      return mem66;
+      return lastSampleOffset;
     };
 
     // Removed sine table stored a pre calculated sine wave but in modern CPU, we can calculate inline.
@@ -221,7 +219,7 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
     let phase1 = 0;
     let phase2 = 0;
     let phase3 = 0;
-    let mem66 = 0;
+    let lastSampleOffset = 0;
     let pos = 0;
     let glottal_pulse = pitches[0];
     let mem38 = glottal_pulse * .75 |0;
@@ -231,7 +229,7 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
 
       // unvoiced sampled phoneme?
       if ((flags & 248) !== 0) {
-        mem66 = RenderSample(mem66, flags, pos);
+        lastSampleOffset = RenderSample(lastSampleOffset, flags, pos);
         // skip ahead two in the phoneme buffer
         pos += 2;
         frameCount -= 2;
@@ -300,7 +298,7 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
           // voiced sampled phonemes interleave the sample with the
           // glottal pulse. The sample flag is non-zero, so render
           // the sample for the phoneme.
-          mem66 = RenderSample(mem66, flags, pos);
+          lastSampleOffset = RenderSample(lastSampleOffset, flags, pos);
         }
       }
 
