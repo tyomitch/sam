@@ -29,6 +29,18 @@ const buildSrc = [
     moduleName: 'SamJs',
   },
   {
+    name: 'parser',
+    entry: 'src/parser/parser.es6',
+    dest: 'parser',
+    moduleName: 'Parser',
+  },
+  {
+    name: 'renderer',
+    entry: 'src/renderer/renderer.es6',
+    dest: 'renderer',
+    moduleName: 'Renderer',
+  },
+  {
     name: 'guessnum-demo',
     entry: 'src/guessnum.es6',
     dest: 'guessnum',
