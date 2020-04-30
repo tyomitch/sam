@@ -155,9 +155,7 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
    * To simulate them being driven by the glottal pulse, the waveforms are
    * reset at the beginning of each glottal pulse.
    */
-  function ProcessFrames(frameCount, speed, frequency, pitches, amplitude, sampledConsonantFlag) {
-    const RenderSample = (lastSampleOffset, consonantFlag, mem49) => {
-      // mem49 == current phoneme's index - unsigned char
+    function RenderSample(lastSampleOffset, consonantFlag, pitch) {
 
       // mask low three bits and subtract 1 get value to
       // convert 0 bits on unvoiced samples.
@@ -188,7 +186,7 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
 
       if(off === 0) {
         // voiced phoneme: Z*, ZH, V*, DH
-        let phase1 = (pitches[mem49 & 0xFF] >> 4) ^ 255 & 0xFF; // unsigned char
+        let phase1 = (pitch >> 4) ^ 255 & 0xFF; // unsigned char
         off = lastSampleOffset & 0xFF; // unsigned char
         do {
           renderSample(3, 26, 4, 6)
@@ -210,6 +208,7 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
     // Removed sine table stored a pre calculated sine wave but in modern CPU, we can calculate inline.
     const sinus = (x) => Math.sin(2*Math.PI*(i/256)) * 127 | 0;
 
+  function ProcessFrames(frameCount, speed, frequency, pitches, amplitude, sampledConsonantFlag) {
     let speedcounter = speed;
     let phase1 = 0;
     let phase2 = 0;
@@ -224,7 +223,7 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
 
       // unvoiced sampled phoneme?
       if ((flags & 248) !== 0) {
-        lastSampleOffset = RenderSample(lastSampleOffset, flags, pos);
+        lastSampleOffset = RenderSample(lastSampleOffset, flags, pitches[pos & 0xFF]);
         // skip ahead two in the phoneme buffer
         pos += 2;
         frameCount -= 2;
