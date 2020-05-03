@@ -1451,7 +1451,8 @@ function PrintPhonemes (phonemeindex, phonemeLength, stress) {
 }
 
 // Values substituted for zero bits in unvoiced consonant samples.
-var tab48426 = [0x18, 0x1A, 0x17, 0x17, 0x17];
+// tab48426
+var sampledConsonantValues0 = [0x18, 0x1A, 0x17, 0x17, 0x17];
 
 var stressPitch_tab47492 = [
   0x00, 0x00, 0xE0, 0xE6, 0xEC, 0xF3, 0xF9, 0x00,
@@ -1504,8 +1505,10 @@ var inBlendLength = [
 ];
 
 // Consists of two bitfields:
-// Low 3 bits (masked by 7) select a 256-byte section in sampleTable, as well as index into tab48426 for unvoiced.
-// High 5 bits (masked by 248 = 11111000), for unvoiced, give inverted offset within the 256-byte section.
+// Low 3 bits (masked by 7) select a 256-byte section in sampleTable,
+// as well as index into sampledConsonantValues0 for unvoiced.
+// High 5 bits (masked by 248 = 11111000), for unvoiced,
+// give inverted offset within the 256-byte section.
 //
 // 32: S*    241         11110001
 // 33: SH    226         11100010
@@ -1710,17 +1713,6 @@ var ampldata = [
   0x00000F | 0x000000 | 0x130000,
   0x00000F | 0x000000 | 0x100000
 ];
-
-var sinus = Array.apply(null, Array(256)).map(function (n, i) {
-  // let y = (Math.sin(2*Math.PI*(i/256)) * 255 | 0);
-  //const PI=3.14159265;
-  var PI=3.141;
-  var y = ((Math.sin(
-    (2*PI)*
-    ((i)/255)
-  )*128 | 0)/16|0)*16;
-  return y < 0 ? y+255 : y;
-});
 
 // Sampled data for consonants, consisting of five 256-byte sections
 var sampleTable = [
@@ -2259,90 +2251,31 @@ function CreateFrames (
   ];
 }
 
-function CreateOutputBuffer(buffersize) {
-  var buffer = new Uint8Array(buffersize);
-  var bufferpos = 0;
-  var oldTimeTableIndex = 0;
-  // Writer to buffer.
-  var writer = function (index, A) {
-    writer.raw(index, (A & 15) * 16);
-  };
-  writer.raw = function (index, A) {
-    writer.ary(index, [A, A, A, A, A]);
-  };
-  writer.ary = function (index, array) {
-    // timetable for more accurate c64 simulation
-    var timetable = [
-      [162, 167, 167, 127, 128],
-      [226, 60, 60, 0, 0],
-      [225, 60, 59, 0, 0],
-      [200, 0, 0, 54, 55],
-      [199, 0, 0, 54, 54]
-    ];
-    bufferpos += timetable[oldTimeTableIndex][index];
-    if (((bufferpos / 50) | 0) > buffer.length) {
-      {
-        throw new Error(("Buffer overflow, want " + (((bufferpos / 50) | 0)) + " but buffersize is only " + (buffer.length) + "!"));
-      }
-    }
-    oldTimeTableIndex = index;
-    // write a little bit in advance
-    for (var k = 0; k < 5; k++) {
-      buffer[(bufferpos / 50 | 0) + k] = array[k];
-    }
-  };
-  writer.get = function () {
-    return buffer.slice(0, bufferpos / 50 | 0);
-  };
-  return writer;
-}
-
-/**
- * @param {Array} phonemes
- * @param {Number} [pitch]
- * @param {Number} [mouth]
- * @param {Number} [throat]
- * @param {Number} [speed]
- * @param {Boolean} [singmode]
- *
- * @return Uint8Array
- */
-function Renderer(phonemes, pitch, mouth, throat, speed, singmode) {
-  pitch = (pitch === undefined) ? 64 : pitch & 0xFF;
-  mouth = (mouth === undefined) ? 128 : mouth & 0xFF;
-  throat = (throat === undefined) ? 128 : throat & 0xFF;
-  speed = (speed || 72) & 0xFF;
-  singmode = singmode || false;
-
-  // Every frame is 20ms long.
-  var Output = CreateOutputBuffer(
-    441 // = (22050/50)
-    * phonemes.reduce(function (pre, v) { return pre + (v[1] * 20); }, 0) / 50 // Combined phoneme length in ms.
-    * speed | 0 // multiplied by speed.
-  );
-
+function PrepareFrames(phonemes, pitch, mouth, throat, singmode) {
   var freqdata = SetMouthThroat(mouth, throat);
+
+  var sentences = [];
 
   // Main render loop.
   var srcpos  = 0; // Position in source
   // FIXME: should be tuple buffer as well.
   var tuples = [];
-  while(1) {
-    var A = phonemes[srcpos];
+  var A;
+  do {
+    A = phonemes[srcpos];
     if (A[0]) {
-      if (A[0] === END) {
-        Render(tuples);
-        return Output.get();
-      }
-      if (A[0] === BREAK) {
-        Render(tuples);
+      if (A[0] === END || A[0] === BREAK) {
+        var sentence = Render(tuples);
+        if (sentence[0])
+          { sentences.push(sentence); }
         tuples = [];
       } else {
         tuples.push(A);
       }
     }
     ++srcpos;
-  }
+  } while(A[0] !== END);
+  return sentences;
 
   /**
    * RENDER THE PHONEMES IN THE LIST
@@ -2363,7 +2296,7 @@ function Renderer(phonemes, pitch, mouth, throat, speed, singmode) {
    */
   function Render (tuples) {
     if (tuples.length === 0) {
-      return; //exit if no data
+      return [0, [], [], [], []]; //exit if no data
     }
 
     var ref = CreateFrames(
@@ -2413,173 +2346,250 @@ function Renderer(phonemes, pitch, mouth, throat, speed, singmode) {
       amplitude[2][i$1] = amplitudeRescale[amplitude[2][i$1]];
     }
 
+    return [t, frequency, pitches, amplitude, sampledConsonantFlag];
+  }
+}
+
+function CreateOutputBuffer(buffersize) {
+  var buffer = new Uint8Array(buffersize);
+  var bufferpos = 0;
+  var oldTimeTableIndex = 0;
+  // Scale by 16 and write five times.
+  var writer = function (index, A) {
+    var scaled = (A & 15) * 16;
+    writer.ary(index, [scaled, scaled, scaled, scaled, scaled]);
+  };
+  // Write the five given values.
+  writer.ary = function (index, array) {
+    // timetable for more accurate c64 simulation
+    var timetable = [
+      [162, 167, 167, 127, 128],
+      [226, 60, 60, 0, 0],
+      [225, 60, 59, 0, 0],
+      [200, 0, 0, 54, 55],
+      [199, 0, 0, 54, 54]
+    ];
+    bufferpos += timetable[oldTimeTableIndex][index];
+    if (((bufferpos / 50) | 0) > buffer.length) {
+      {
+        throw new Error(("Buffer overflow, want " + (((bufferpos / 50) | 0)) + " but buffersize is only " + (buffer.length) + "!"));
+      }
+    }
+    oldTimeTableIndex = index;
+    // write a little bit in advance
+    for (var k = 0; k < 5; k++) {
+      buffer[(bufferpos / 50 | 0) + k] = array[k];
+    }
+  };
+  writer.get = function () {
+    return buffer.slice(0, bufferpos / 50 | 0);
+  };
+  return writer;
+}
+
+var sinus = Array.apply(null, Array(256)).map(function (n, i) { return Math.sin(2*Math.PI*(i/256)) * 127 | 0; }
+);
+
+function RenderSample(Output, lastSampleOffset, consonantFlag, pitch) {
+
+  // mask low three bits and subtract 1 get value to
+  // convert 0 bits on unvoiced samples.
+  var kind = (consonantFlag & 7) - 1;
+
+  // determine which value to use from table { 0x18, 0x1A, 0x17, 0x17, 0x17 }
+  // T', S, Z               0          0x18   coronal
+  // CH', J', SH, ZH        1          0x1A   palato-alveolar
+  // P', F, V, TH, DH       2          0x17   [labio]dental
+  // /H                     3          0x17   palatal
+  // /X                     4          0x17   glottal
+
+  var samplePage = kind * 256 & 0xFFFF; // unsigned short
+  var off = consonantFlag & 248; // unsigned char
+
+  function renderSample (index1, value1, index0, value0) {
+    var bit = 8;
+    var sample = sampleTable[samplePage+off];
+    do {
+      if ((sample & 128) !== 0) {
+        Output(index1, value1);
+      } else {
+        Output(index0, value0);
+      }
+      sample <<= 1;
+    } while(--bit);
+  }
+
+  if(off === 0) {
+    // voiced phoneme: Z*, ZH, V*, DH
+    var phase1 = (pitch >> 4) ^ 255 & 0xFF; // unsigned char
+    off = lastSampleOffset & 0xFF; // unsigned char
+    do {
+      renderSample(3, 26, 4, 6);
+      off++;
+    } while (++phase1 & 0xFF);
+    return off;
+  }
+  // unvoiced
+  off = off ^ 255 & 0xFF; // unsigned char
+  var value0 = sampledConsonantValues0[kind] & 0xFF; // unsigned char
+  do {
+    renderSample(2, 5, 1, value0);
+  } while (++off & 0xFF);
+
+  return lastSampleOffset;
+}
+/**
+ * PROCESS THE FRAMES
+ *
+ * In traditional vocal synthesis, the glottal pulse drives filters, which
+ * are attenuated to the frequencies of the formants.
+ *
+ * SAM generates these formants directly with sin and rectangular waves.
+ * To simulate them being driven by the glottal pulse, the waveforms are
+ * reset at the beginning of each glottal pulse.
+ */
+function ProcessFrames(Output, frameCount, speed, frequency, pitches, amplitude, sampledConsonantFlag) {
+  var speedcounter = 72;
+  var phase1 = 0;
+  var phase2 = 0;
+  var phase3 = 0;
+  var lastSampleOffset = 0;
+  var pos = 0;
+  var glottal_pulse = pitches[0];
+  var mem38 = glottal_pulse * .75 |0;
+
+  while(frameCount) {
+    var flags = sampledConsonantFlag[pos];
+
+    // unvoiced sampled phoneme?
+    if ((flags & 248) !== 0) {
+      lastSampleOffset = RenderSample(Output, lastSampleOffset, flags, pitches[pos & 0xFF]);
+      // skip ahead two in the phoneme buffer
+      pos += 2;
+      frameCount -= 2;
+      speedcounter = speed;
+    } else {
+      {
+        // Rectangle table consisting of:
+        //   0-128 = 0x90
+        // 128-255 = 0x70
+
+        // Remove multtable, replace with logical equivalent.
+        // Multtable stored the result of a 8-bit signed multiply of the upper nibble of sin/rect (interpreted as signed)
+        // and the amplitude lower nibble (interpreted as unsigned), then divided by two.
+        // On the 6510 this made sense, but in modern processors it's way faster and cleaner to simply do the multiply.
+        // simulate the glottal pulse and formants
+        var ary = [];
+        var /* unsigned int */ p1 = phase1 * 256; // Fixed point integers because we need to divide later on
+        var /* unsigned int */ p2 = phase2 * 256;
+        var /* unsigned int */ p3 = phase3 * 256;
+        var k = (void 0);
+        for (k=0; k<5; k++) {
+          var /* signed char */ sp1 = sinus[0xff & (p1>>8)];
+          var /* signed char */ sp2 = sinus[0xff & (p2>>8)];
+          var /* signed char */ rp3 = ((0xff & (p3>>8))<129) ? -0x70 : 0x70;
+          var /* signed int */ sin1 = sp1 * (/* (unsigned char) */ amplitude[0][pos] & 0x0F);
+          var /* signed int */ sin2 = sp2 * (/* (unsigned char) */ amplitude[1][pos] & 0x0F);
+          var /* signed int */ rect = rp3 * (/* (unsigned char) */ amplitude[2][pos] & 0x0F);
+          var /* signed int */ mux = sin1 + sin2 + rect;
+          mux /= 32;
+          mux += 128; // Go from signed to unsigned amplitude
+          ary[k] = mux |0;
+          p1 += frequency[0][pos] * 256 / 4; // Compromise, this becomes a shift and works well
+          p2 += frequency[1][pos] * 256 / 4;
+          p3 += frequency[2][pos] * 256 / 4;
+        }
+        Output.ary(0, ary);
+      }
+
+      speedcounter--;
+      if (speedcounter === 0) {
+        pos++; //go to next amplitude
+        // decrement the frame count
+        frameCount--;
+        if(frameCount === 0) {
+          return;
+        }
+        speedcounter = speed;
+      }
+
+      glottal_pulse--;
+
+      if(glottal_pulse !== 0) {
+        // not finished with a glottal pulse
+
+        mem38--;
+        // within the first 75% of the glottal pulse?
+        // is the count non-zero and the sampled flag is zero?
+        if((mem38 !== 0) || (flags === 0)) {
+          // reset the phase of the formants to match the pulse
+          // TODO: we should have a switch to disable this, it causes a pretty nice voice without the masking!
+          phase1 = phase1 + frequency[0][pos] & 0xFF;
+          phase2 = phase2 + frequency[1][pos] & 0xFF;
+          phase3 = phase3 + frequency[2][pos] & 0xFF;
+          continue;
+        }
+
+        // voiced sampled phonemes interleave the sample with the
+        // glottal pulse. The sample flag is non-zero, so render
+        // the sample for the phoneme.
+        lastSampleOffset = RenderSample(Output, lastSampleOffset, flags, pitches[pos & 0xFF]);
+      }
+    }
+
+    glottal_pulse = pitches[pos];
+    mem38 = glottal_pulse * .75 |0;
+
+    // reset the formant wave generators to keep them in
+    // sync with the glottal pulse
+    phase1 = 0;
+    phase2 = 0;
+    phase3 = 0;
+  }
+}
+
+/**
+ * @param {Array} phonemes
+ * @param {Number} [pitch]
+ * @param {Number} [mouth]
+ * @param {Number} [throat]
+ * @param {Number} [speed]
+ * @param {Boolean} [singmode]
+ *
+ * @return Uint8Array
+ */
+function Renderer(phonemes, pitch, mouth, throat, speed, singmode) {
+  pitch = (pitch === undefined) ? 64 : pitch & 0xFF;
+  mouth = (mouth === undefined) ? 128 : mouth & 0xFF;
+  throat = (throat === undefined) ? 128 : throat & 0xFF;
+  speed = (speed || 72) & 0xFF;
+  singmode = singmode || false;
+
+  var sentences = PrepareFrames(phonemes, pitch, mouth, throat, singmode);
+
+  // Every frame is 20ms long.
+  var Output = CreateOutputBuffer(
+    441 // = (22050/50)
+    * phonemes.reduce(function (pre, v) { return pre + (v[1] * 20); }, 0) / 50 // Combined phoneme length in ms.
+    * speed | 0 // multiplied by speed.
+  );
+
+  for (var i=0; i<sentences.length; i++) {
+    var ref = sentences[i];
+    var t = ref[0];
+    var frequency = ref[1];
+    var pitches = ref[2];
+    var amplitude = ref[3];
+    var sampledConsonantFlag = ref[4];
+
     {
       PrintOutput(pitches, frequency, amplitude, sampledConsonantFlag);
     }
 
-    ProcessFrames(t, speed, frequency, pitches, amplitude, sampledConsonantFlag);
+    ProcessFrames(Output, t, speed, frequency, pitches, amplitude, sampledConsonantFlag);
   }
 
-  /**
-   * PROCESS THE FRAMES
-   *
-   * In traditional vocal synthesis, the glottal pulse drives filters, which
-   * are attenuated to the frequencies of the formants.
-   *
-   * SAM generates these formants directly with sin and rectangular waves.
-   * To simulate them being driven by the glottal pulse, the waveforms are
-   * reset at the beginning of each glottal pulse.
-   */
-  function ProcessFrames(frameCount, speed, frequency, pitches, amplitude, sampledConsonantFlag) {
-    var RenderSample = function (lastSampleOffset, consonantFlag, mem49) {
-      // mem49 == current phoneme's index - unsigned char
-
-      // mask low three bits and subtract 1 get value to
-      // convert 0 bits on unvoiced samples.
-      var kind = (consonantFlag & 7) - 1;
-
-      // determine which value to use from table { 0x18, 0x1A, 0x17, 0x17, 0x17 }
-      // T', S, Z               0          0x18   coronal
-      // CH', J', SH, ZH        1          0x1A   palato-alveolar
-      // P', F, V, TH, DH       2          0x17   [labio]dental
-      // /H                     3          0x17   palatal
-      // /X                     4          0x17   glottal
-
-      var samplePage = kind * 256 & 0xFFFF; // unsigned short
-      var off = consonantFlag & 248; // unsigned char
-
-      function renderSample (index1, value1, index0, value0) {
-        var bit = 8;
-        var sample = sampleTable[samplePage+off];
-        do {
-          if ((sample & 128) !== 0) {
-            Output(index1, value1);
-          } else {
-            Output(index0, value0);
-          }
-          sample <<= 1;
-        } while(--bit);
-      }
-
-      if(off === 0) {
-        // voiced phoneme: Z*, ZH, V*, DH
-        var phase1 = (pitches[mem49 & 0xFF] >> 4) ^ 255 & 0xFF; // unsigned char
-        off = lastSampleOffset & 0xFF; // unsigned char
-        do {
-          renderSample(3, 26, 4, 6);
-          off++;
-        } while (++phase1 & 0xFF);
-        return off;
-      }
-      // unvoiced
-      off = off ^ 255 & 0xFF; // unsigned char
-      var value0 = tab48426[kind] & 0xFF; // unsigned char
-      do {
-        renderSample(2, 5, 1, value0);
-      } while (++off & 0xFF);
-
-      return lastSampleOffset;
-    };
-
-    var speedcounter = 72;
-    var phase1 = 0;
-    var phase2 = 0;
-    var phase3 = 0;
-    var lastSampleOffset = 0;
-    var pos = 0;
-    var glottal_pulse = pitches[0];
-    var mem38 = glottal_pulse * .75 |0;
-
-    while(frameCount) {
-      var flags = sampledConsonantFlag[pos];
-
-      // unvoiced sampled phoneme?
-      if ((flags & 248) !== 0) {
-        lastSampleOffset = RenderSample(lastSampleOffset, flags, pos);
-        // skip ahead two in the phoneme buffer
-        pos += 2;
-        frameCount -= 2;
-        speedcounter = speed;
-      } else {
-        {
-          // Rectangle table consisting of:
-          //   0-128 = 0x90
-          // 128-255 = 0x70
-
-          // Remove multtable, replace with logical equivalent.
-          // Multtable stored the result of a 8-bit signed multiply of the upper nibble of sin/rect (interpreted as signed)
-          // and the amplitude lower nibble (interpreted as unsigned), then divided by two.
-          // On the 6510 this made sense, but in modern processors it's way faster and cleaner to simply do the multiply.
-          var char = function (x) { return (x & 0x7F) - (x & 0x80); };
-          // simulate the glottal pulse and formants
-          var ary = [];
-          var /* unsigned int */ p1 = phase1 * 256; // Fixed point integers because we need to divide later on
-          var /* unsigned int */ p2 = phase2 * 256;
-          var /* unsigned int */ p3 = phase3 * 256;
-          var k = (void 0);
-          for (k=0; k<5; k++) {
-            var /* signed char */ sp1 = char(sinus[0xff & (p1>>8)]);
-            var /* signed char */ sp2 = char(sinus[0xff & (p2>>8)]);
-            var /* signed char */ rp3 = char(0xff & (((p3>>8)<129) ? 0x90 : 0x70));
-            var /* signed int */ sin1 = sp1 * (/* (unsigned char) */ amplitude[0][pos] & 0x0F);
-            var /* signed int */ sin2 = sp2 * (/* (unsigned char) */ amplitude[1][pos] & 0x0F);
-            var /* signed int */ rect = rp3 * (/* (unsigned char) */ amplitude[2][pos] & 0x0F);
-            var /* signed int */ mux = sin1 + sin2 + rect;
-            mux /= 32;
-            mux += 128; // Go from signed to unsigned amplitude
-            ary[k] = mux |0;
-            p1 += frequency[0][pos] * 256 / 4; // Compromise, this becomes a shift and works well
-            p2 += frequency[1][pos] * 256 / 4;
-            p3 += frequency[2][pos] * 256 / 4;
-          }
-          Output.ary(0, ary);
-        }
-
-        speedcounter--;
-        if (speedcounter === 0) {
-          pos++; //go to next amplitude
-          // decrement the frame count
-          frameCount--;
-          if(frameCount === 0) {
-            return;
-          }
-          speedcounter = speed;
-        }
-
-        glottal_pulse--;
-
-        if(glottal_pulse !== 0) {
-          // not finished with a glottal pulse
-
-          mem38--;
-          // within the first 75% of the glottal pulse?
-          // is the count non-zero and the sampled flag is zero?
-          if((mem38 !== 0) || (flags === 0)) {
-            // reset the phase of the formants to match the pulse
-            // TODO: we should have a switch to disable this, it causes a pretty nice voice without the masking!
-            phase1 = phase1 + frequency[0][pos] & 0xFF;
-            phase2 = phase2 + frequency[1][pos] & 0xFF;
-            phase3 = phase3 + frequency[2][pos] & 0xFF;
-            continue;
-          }
-
-          // voiced sampled phonemes interleave the sample with the
-          // glottal pulse. The sample flag is non-zero, so render
-          // the sample for the phoneme.
-          lastSampleOffset = RenderSample(lastSampleOffset, flags, pos);
-        }
-      }
-
-      glottal_pulse = pitches[pos];
-      mem38 = glottal_pulse * .75 |0;
-
-      // reset the formant wave generators to keep them in
-      // sync with the glottal pulse
-      phase1 = 0;
-      phase2 = 0;
-      phase3 = 0;
-    }
-  }
+  return Output.get();
 }
 
 function PrintOutput(pitches, frequency, amplitude, sampledConsonantFlag) {

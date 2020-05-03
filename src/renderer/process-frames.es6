@@ -1,8 +1,11 @@
 import {
   sampledConsonantValues0,
   sampleTable,
-  sinus
 } from './tables.es6';
+
+const sinus = Array.apply(null, Array(256)).map((n, i) =>
+  Math.sin(2*Math.PI*(i/256)) * 127 | 0
+);
 
 function RenderSample(Output, lastSampleOffset, consonantFlag, pitch) {
 

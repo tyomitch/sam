@@ -36,7 +36,7 @@ const buildSrc = [
   },
   {
     name: 'renderer',
-    entry: 'src/renderer/renderer.es6',
+    entry: 'src/renderer/prepare-frames.es6',
     dest: 'renderer',
     moduleName: 'Renderer',
   },
