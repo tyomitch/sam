@@ -62,7 +62,7 @@ function RenderSample(Output, lastSampleOffset, consonantFlag, pitch) {
  * In traditional vocal synthesis, the glottal pulse drives filters, which
  * are attenuated to the frequencies of the formants.
  *
- * SAM generates these formants directly with sin and rectangular waves.
+ * SAM generates these formants directly with sine and rectangular waves.
  * To simulate them being driven by the glottal pulse, the waveforms are
  * reset at the beginning of each glottal pulse.
  */
@@ -88,15 +88,10 @@ export default function ProcessFrames(Output, frameCount, speed, frequency, pitc
       speedcounter = speed;
     } else {
       {
-        // Rectangle table consisting of:
+        // Rectangle wave consisting of:
         //   0-128 = 0x90
         // 128-255 = 0x70
 
-        // Remove multtable, replace with logical equivalent.
-        // Multtable stored the result of a 8-bit signed multiply of the upper nibble of sin/rect (interpreted as signed)
-        // and the amplitude lower nibble (interpreted as unsigned), then divided by two.
-        // On the 6510 this made sense, but in modern processors it's way faster and cleaner to simply do the multiply.
-        // simulate the glottal pulse and formants
         let ary = []
         let /* unsigned int */ p1 = phase1 * 256; // Fixed point integers because we need to divide later on
         let /* unsigned int */ p2 = phase2 * 256;
@@ -140,7 +135,7 @@ export default function ProcessFrames(Output, frameCount, speed, frequency, pitc
         // within the first 75% of the glottal pulse?
         // is the count non-zero and the sampled flag is zero?
         if((mem38 !== 0) || (flags === 0)) {
-          // reset the phase of the formants to match the pulse
+          // update the phase of the formants
           // TODO: we should have a switch to disable this, it causes a pretty nice voice without the masking!
           phase1 = phase1 + frequency[0][pos] & 0xFF;
           phase2 = phase2 + frequency[1][pos] & 0xFF;
