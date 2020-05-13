@@ -1089,9 +1089,6 @@ function TextToPhonemes (input) {
   })();
 }
 
-var BREAK = 254;
-var END   = 255;
-
 var StressTable = '*12345678'.split('');
 
 var PhonemeNameTable = (
@@ -1228,7 +1225,7 @@ var PhonemeNameTable = (
  *    'B*', '**', '**', 'D*', '**', '**', 'G*', '**', '**', 'GX', '**',
  *    '**', 'P*', '**', '**', 'T*', '**', '**', 'K*', '**', '**', 'KX',
  *    '**', '**'
- *  0x0001  FLAG_PLOSIVE
+ *  0x0001  FLAG_UNVOICED_STOPCONS
  *    'P*', '**', '**', 'T*', '**', '**', 'K*', '**', '**', 'KX', '**',
  *    '**', 'UM', 'UN'
  */
@@ -1692,7 +1689,7 @@ var FLAG_VOICED$1   = 0x0004;
  */
 var FLAG_STOPCONS = 0x0002;
 
-var FLAG_PLOSIVE  = 0x0001;
+var FLAG_UNVOICED_STOPCONS  = 0x0001;
 
 /**
  * Rewrites the phonemes using the following rules:
@@ -1701,6 +1698,7 @@ var FLAG_PLOSIVE  = 0x0001;
  * <DIPHTHONG NOT ENDING WITH WX> -> <DIPHTHONG NOT ENDING WITH WX> YX
  * UL -> AX L
  * UM -> AX M
+ * UN -> AX N
  * <STRESSED VOWEL> <SILENCE> <STRESSED VOWEL> -> <STRESSED VOWEL> <SILENCE> Q <VOWEL>
  * T R -> CH R
  * D R -> J R
@@ -1772,7 +1770,7 @@ function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress) {
   var pos = -1;
   var phoneme;
 
-  while((phoneme = getPhoneme(++pos)) !== END) {
+  while((phoneme = getPhoneme(++pos)) !== null) {
     // Is phoneme pause?
     if (phoneme === 0) {
       continue;
@@ -1818,9 +1816,9 @@ function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress) {
       // RULE:
       //       <STRESSED VOWEL> <SILENCE> <STRESSED VOWEL> -> <STRESSED VOWEL> <SILENCE> Q <VOWEL>
       // EXAMPLE: AWAY EIGHT
-      if (!getPhoneme(pos+1)) { // If following phoneme is a pause, get next
+      if (getPhoneme(pos+1) === 0) { // If following phoneme is a pause, get next
         phoneme = getPhoneme(pos+2);
-        if (phoneme !== END && phonemeHasFlag(phoneme, FLAG_VOWEL) && getStress(pos+2)) {
+        if (phoneme !== null && phonemeHasFlag(phoneme, FLAG_VOWEL) && getStress(pos+2)) {
           {
             console.log(((pos+2) + " RULE: Insert glottal stop between two stressed vowels with space between them"));
           }
@@ -1830,7 +1828,7 @@ function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress) {
       continue;
     }
 
-    var priorPhoneme = (pos === 0) ? END : getPhoneme(pos - 1);
+    var priorPhoneme = (pos === 0) ? null : getPhoneme(pos - 1);
 
     if (phoneme === pR) {
       // RULES FOR PHONEMES BEFORE R
@@ -1881,7 +1879,7 @@ function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress) {
       // Example: GO
       var phoneme$1 = getPhoneme(pos + 1);
       // If diphthong ending with YX, move continue processing next phoneme
-      if (!phonemeHasFlag(phoneme$1, FLAG_DIP_YX) && (phoneme$1 !== END)) {
+      if (!phonemeHasFlag(phoneme$1, FLAG_DIP_YX) && (phoneme$1 !== null)) {
         // replace G with GX and continue processing next phoneme
         {
           console.log(
@@ -1899,7 +1897,7 @@ function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress) {
       // Example: COW
       var Y = getPhoneme(pos + 1);
       // If at end, replace current phoneme with KX
-      if (!phonemeHasFlag(Y, FLAG_DIP_YX) || Y === END) {
+      if (!phonemeHasFlag(Y, FLAG_DIP_YX) || Y === null) {
         // VOWELS AND DIPHTHONGS ENDING WITH IY SOUND flag set?
         {
           console.log((pos + " K <VOWEL OR DIPTHONG NOT ENDING WITH IY> -> KX <VOWEL OR DIPTHONG NOT ENDING WITH IY>"));
@@ -1910,7 +1908,7 @@ function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress) {
     }
 
     // Replace with softer version?
-    if (phonemeHasFlag(phoneme, FLAG_PLOSIVE) && (priorPhoneme === 32)) { // 'S*'
+    if (phonemeHasFlag(phoneme, FLAG_UNVOICED_STOPCONS) && (priorPhoneme === 32)) { // 'S*'
       // RULE:
       //   'S*' 'P*' -> 'S*' 'B*'
       //   'S*' 'T*' -> 'S*' 'D*'
@@ -1923,7 +1921,7 @@ function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress) {
         console.log((pos + " RULE: S* " + (PhonemeNameTable[phoneme]) + " -> S* " + (PhonemeNameTable[phoneme-12])));
       }
       setPhoneme(pos, phoneme - 12);
-    } else if (!phonemeHasFlag(phoneme, FLAG_PLOSIVE)) {
+    } else if (!phonemeHasFlag(phoneme, FLAG_UNVOICED_STOPCONS)) {
       handleUW_CH_J(phoneme, pos);
     }
 
@@ -1936,7 +1934,7 @@ function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress) {
       // Example: PARTY, TARDY
       if ((pos > 0) && phonemeHasFlag(getPhoneme(pos-1), FLAG_VOWEL)) {
         phoneme = getPhoneme(pos + 1);
-        if (!phoneme) {
+        if (phoneme === 0) {
           phoneme = getPhoneme(pos + 2);
         }
         if (phonemeHasFlag(phoneme, FLAG_VOWEL) && !getStress(pos+1)) {
@@ -1958,13 +1956,13 @@ function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress) {
 /**
  * Applies various rules that adjust the lengths of phonemes
  *
- * Lengthen <FRICATIVE> or <VOICED> between <VOWEL> and <PUNCTUATION> by 1.5
+ * Lengthen <!FRICATIVE> or <VOICED> between <VOWEL> and <PUNCTUATION> by 1.5
  * <VOWEL> <RX | LX> <CONSONANT> - decrease <VOWEL> length by 1
  * <VOWEL> <UNVOICED PLOSIVE> - decrease vowel by 1/8th
- * <VOWEL> <UNVOICED CONSONANT> - increase vowel by 1/2 + 1
+ * <VOWEL> <VOICED CONSONANT> - increase vowel by 1/4 + 1
  * <NASAL> <STOP CONSONANT> - set nasal = 5, consonant = 6
- * <VOICED STOP CONSONANT> {optional silence} <STOP CONSONANT> - shorten both to 1/2 + 1
- * <LIQUID CONSONANT> <DIPTHONG> - decrease by 2
+ * <STOP CONSONANT> {optional silence} <STOP CONSONANT> - shorten both to 1/2 + 1
+ * <STOP CONSONANT> <LIQUID> - decrease <LIQUID> by 2
  *
  * @param {getPhoneme}    getPhoneme Callback for retrieving phonemes.
  * @param {setPhonemeLength} setLength  Callback for setting phoneme length.
@@ -1985,7 +1983,7 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
   // increased by (length * 1.5) + 1
 
   // loop index
-  for (var position = 0;getPhoneme(position) !== END;position++) {
+  for (var position = 0;getPhoneme(position) !== null;position++) {
     // not punctuation?
     if(!phonemeHasFlag(getPhoneme(position), FLAG_PUNCT)) {
       continue;
@@ -2001,7 +1999,6 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
     for (var vowel=position;position<loopIndex$1;position++) {
       // test for not fricative/unvoiced or not voiced
       if(!phonemeHasFlag(getPhoneme(position), FLAG_FRICATIVE) || phonemeHasFlag(getPhoneme(position), FLAG_VOICED$1)) {
-        //nochmal überprüfen
         var A = getLength(position);
         // change phoneme length to (length * 1.5) + 1
         {
@@ -2023,7 +2020,7 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
   var loopIndex = -1;
   var phoneme;
 
-  while((phoneme = getPhoneme(++loopIndex)) !== END) {
+  while((phoneme = getPhoneme(++loopIndex)) !== null) {
     var position$1 = loopIndex;
     // vowel?
     if (phonemeHasFlag(phoneme, FLAG_VOWEL)) {
@@ -2050,16 +2047,14 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
         continue;
       }
       // Got here if not <VOWEL>
-      // FIXME: above comment is in fact incorrect - we end up here for consonants!
-      // 0x41 = 65 if end marker === FLAG_CONSONANT | FLAG_PLOSIVE
-      // FIXME: shouldn't this be FLAG_VOICED | FLAG_PLOSIVE here? We skip through the checks this way.
-      var flags = (phoneme === END) ? (FLAG_CONSONANT$1 | FLAG_PLOSIVE) : phonemeFlags[phoneme];
+      // FIXME: the case when phoneme === END is taken over by !phonemeHasFlag(phoneme, FLAG_CONSONANT)
+      var flags = (phoneme === null) ? (FLAG_CONSONANT$1 | FLAG_UNVOICED_STOPCONS) : phonemeFlags[phoneme];
       // Unvoiced
       if (!matchesBitmask(flags, FLAG_VOICED$1)) {
         // *, .*, ?*, ,*, -*, DX, S*, SH, F*, TH, /H, /X, CH, P*, T*, K*, KX
 
         // unvoiced plosive
-        if(matchesBitmask(flags, FLAG_PLOSIVE)) {
+        if(matchesBitmask(flags, FLAG_UNVOICED_STOPCONS)) {
           // RULE: <VOWEL> <UNVOICED PLOSIVE>
           // <VOWEL> <P*, T*, K*, KX>
           {
@@ -2071,18 +2066,20 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
         continue;
       }
 
-      // RULE: <VOWEL> <VOICED CONSONANT>
-      // <VOWEL> <WH, R*, L*, W*, Y*, M*, N*, NX, DX, Q*, Z*, ZH, V*, DH, J*, B*, D*, G*, GX>
+      // RULE: <VOWEL> <VOWEL or VOICED CONSONANT>
+      // <VOWEL> <IY, IH, EH, AE, AA, AH, AO, UH, AX, IX, ER, UX, OH, RX, LX, WX, YX, WH, R*, L*, W*,
+      //          Y*, M*, N*, NX, Q*, Z*, ZH, V*, DH, J*, EY, AY, OY, AW, OW, UW, B*, D*, G*, GX>
       {
-        console.log((loopIndex + " RULE: <VOWEL> <VOICED CONSONANT> - increase vowel by 1/2 + 1"));
+        console.log((loopIndex + " RULE: <VOWEL> <VOWEL or VOICED CONSONANT> - increase vowel by 1/4 + 1"));
       }
-      // decrease length
+      // increase length
       var A$2 = getLength(loopIndex);
       setLength(loopIndex, (A$2 >> 2) + A$2 + 1); // 5/4*A + 1
       continue;
     }
 
-    // WH, R*, L*, W*, Y*, M*, N*, NX, Q*, Z*, ZH, V*, DH, J*, B*, D*, G*, GX
+    //  *, .*, ?*, ,*, -*, WH, R*, L*, W*, Y*, M*, N*, NX, DX, Q*, S*, SH, F*,
+    // TH, /H, /X, Z*, ZH, V*, DH, CH, J*, B*, D*, G*, GX, P*, T*, K*, KX
 
     // nasal?
     if(phonemeHasFlag(phoneme, FLAG_NASAL)) {
@@ -2093,7 +2090,7 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
       // M*, N*, NX,
       phoneme = getPhoneme(++position$1);
       // is next phoneme a stop consonant?
-      if (phoneme !== END && phonemeHasFlag(phoneme, FLAG_STOPCONS)) {
+      if (phoneme !== null && phonemeHasFlag(phoneme, FLAG_STOPCONS)) {
         // B*, D*, G*, GX, P*, T*, K*, KX
         {
           console.log((position$1 + " RULE: <NASAL> <STOP CONSONANT> - set nasal = 5, consonant = 6"));
@@ -2104,22 +2101,23 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
       continue;
     }
 
-    // WH, R*, L*, W*, Y*, Q*, Z*, ZH, V*, DH, J*, B*, D*, G*, GX
+    //  *, .*, ?*, ,*, -*, WH, R*, L*, W*, Y*, DX, Q*, S*, SH, F*, TH,
+    // /H, /X, Z*, ZH, V*, DH, CH, J*, B*, D*, G*, GX, P*, T*, K*, KX
 
-    // (voiced) stop consonant?
+    // stop consonant?
     if(phonemeHasFlag(phoneme, FLAG_STOPCONS)) {
       // B*, D*, G*, GX
 
-      // RULE: <VOICED STOP CONSONANT> {optional silence} <STOP CONSONANT>
+      // RULE: <STOP CONSONANT> {optional silence} <STOP CONSONANT>
       //       Shorten both to (length/2 + 1)
 
       while ((phoneme = getPhoneme(++position$1)) === 0) { /* move past silence */ }
       // if another stop consonant, process.
-      if (phoneme !== END && phonemeHasFlag(phoneme, FLAG_STOPCONS)) {
-        // RULE: <UNVOICED STOP CONSONANT> {optional silence} <STOP CONSONANT>
+      if (phoneme !== null && phonemeHasFlag(phoneme, FLAG_STOPCONS)) {
+        // RULE: <STOP CONSONANT> {optional silence} <STOP CONSONANT>
         {
           console.log(
-            (position$1 + " RULE: <UNVOICED STOP CONSONANT> {optional silence} <STOP CONSONANT> - shorten both to 1/2 + 1")
+            (position$1 + " RULE: <STOP CONSONANT> {optional silence} <STOP CONSONANT> - shorten both to 1/2 + 1")
           );
         }
         setLength(position$1, (getLength(position$1) >> 1) + 1);
@@ -2128,18 +2126,19 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
       continue;
     }
 
-    // WH, R*, L*, W*, Y*, Q*, Z*, ZH, V*, DH, J*, **,
+    //  *, .*, ?*, ,*, -*, WH, R*, L*, W*, Y*, DX, Q*, S*, SH, F*, TH,
+    // /H, /X, Z*, ZH, V*, DH, CH, J*
 
     // liquic consonant?
     if ((position$1>0)
       && phonemeHasFlag(phoneme, FLAG_LIQUIC)
       && phonemeHasFlag(getPhoneme(position$1-1), FLAG_STOPCONS)) {
       // R*, L*, W*, Y*
-      // RULE: <VOICED NON-VOWEL> <DIPTHONG>
-      //       Decrease <DIPTHONG> by 2
+      // RULE: <STOP CONSONANT> <LIQUID>
+      //       Decrease <LIQUID> by 2
       // prior phoneme is a stop consonant
       {
-        console.log((position$1 + " RULE: <LIQUID CONSONANT> <DIPTHONG> - decrease by 2"));
+        console.log((position$1 + " RULE: <STOP CONSONANT> <LIQUID> - decrease by 2"));
       }
       // decrease the phoneme length by 2 frames (20 ms)
       setLength(position$1, getLength(position$1) - 2);
@@ -2170,12 +2169,12 @@ function CopyStress(getPhoneme, getStress, setStress) {
   // loop through all the phonemes to be output
   var position = 0;
   var phoneme;
-  while((phoneme = getPhoneme(position)) !== END) {
+  while((phoneme = getPhoneme(position)) !== null) {
     // if CONSONANT_FLAG set, skip - only vowels get stress
     if (phonemeHasFlag(phoneme, FLAG_CONSONANT$1)) {
       phoneme = getPhoneme(position + 1);
       // if the following phoneme is the end, or a vowel, skip
-      if ((phoneme !== END) && phonemeHasFlag(phoneme, FLAG_VOWEL)) {
+      if ((phoneme !== null) && phonemeHasFlag(phoneme, FLAG_VOWEL)) {
         // get the stress value at the next position
         var stress = getStress(position + 1);
         if ((stress !== 0) && (stress < 0x80)) {
@@ -2201,7 +2200,7 @@ function CopyStress(getPhoneme, getStress, setStress) {
 function SetPhonemeLength(getPhoneme, getStress, setLength) {
   var position = 0;
   var phoneme;
-  while((phoneme = getPhoneme(position)) !== END) {
+  while((phoneme = getPhoneme(position)) !== null) {
     var stress = getStress(position);
     if ((stress === 0) || (stress > 0x7F)) {
       setLength(position, combinedPhonemeLengthTable[phoneme] & 0xFF);
@@ -2209,44 +2208,6 @@ function SetPhonemeLength(getPhoneme, getStress, setLength) {
       setLength(position, (combinedPhonemeLengthTable[phoneme] >> 8));
     }
     position++;
-  }
-}
-
-/**
- *
- * @param {getPhoneme}       getPhoneme    Callback for retrieving phonemes.
- * @param {setPhoneme}       setPhoneme    Callback for setting phonemes.
- * @param {insertPhoneme}    insertPhoneme Callback for inserting phonemes.
- * @param {setPhonemeStress} setStress     Callback for setting phoneme stress.
- * @param {getPhonemeLength} getLength     Callback for getting phoneme length.
- * @param {setPhonemeLength} setLength     Callback for setting phoneme length.
- *
- * @return undefined
- */
-function InsertBreath(getPhoneme, setPhoneme, insertPhoneme, setStress, getLength, setLength) {
-  var mem54 = 255;
-  var len = 0; // mem55
-  var index; //variable Y
-  var pos = -1;
-  while((index = getPhoneme(++pos)) !== END) {
-    len += getLength(pos);
-    if (len < 232) {
-      if (phonemeHasFlag(index, FLAG_PUNCT)) {
-        len = 0;
-        insertPhoneme(pos + 1, BREAK, 0, 0);
-        continue;
-      }
-      if (index === 0) {
-        mem54 = pos;
-      }
-      continue;
-    }
-    pos = mem54;
-    setPhoneme(pos, 31); // 'Q*' glottal stop
-    setLength(pos, 4);
-    setStress(pos, 0);
-    len = 0;
-    insertPhoneme(pos + 1, BREAK, 0, 0);
   }
 }
 
@@ -2263,18 +2224,18 @@ function InsertBreath(getPhoneme, setPhoneme, insertPhoneme, setStress, getLengt
 function ProlongPlosiveStopConsonantsCode41240(getPhoneme, insertPhoneme, getStress) {
   var pos=-1;
   var index;
-  while ((index = getPhoneme(++pos)) !== END) {
+  while ((index = getPhoneme(++pos)) !== null) {
     // Not a stop consonant, move to next one.
     if (!phonemeHasFlag(index, FLAG_STOPCONS)) {
       continue;
     }
     //If plosive, move to next non empty phoneme and validate the flags.
-    if (phonemeHasFlag(index, FLAG_PLOSIVE)) {
+    if (phonemeHasFlag(index, FLAG_UNVOICED_STOPCONS)) {
       var nextNonEmpty = (void 0);
       var X = pos;
       do { nextNonEmpty = getPhoneme(++X); } while (nextNonEmpty === 0);
       // If not END and either flag 0x0008 or '/H' or '/X'
-      if ((nextNonEmpty !== END)
+      if ((nextNonEmpty !== null)
         && (
           phonemeHasFlag(nextNonEmpty, FLAG_0008)
           || (nextNonEmpty === 36)
@@ -2308,7 +2269,7 @@ function Parser (input) {
         throw new Error('Out of bounds: ' + pos)
       }
     }
-    return (pos === phonemeindex.length - 1) ? END : phonemeindex[pos]
+    return (pos === phonemeindex.length) ? null : phonemeindex[pos]
   };
   var setPhoneme = function (pos, value) {
     {
@@ -2384,7 +2345,6 @@ function Parser (input) {
       stress[pos - 1] = value; /* Set stress for prior phoneme */
     }
   );
-  phonemeindex[pos] = END;
 
   {
     PrintPhonemes(phonemeindex, phonemeLength, stress);
@@ -2394,16 +2354,6 @@ function Parser (input) {
   SetPhonemeLength(getPhoneme, getStress, setLength);
   AdjustLengths(getPhoneme, setLength, getLength);
   ProlongPlosiveStopConsonantsCode41240(getPhoneme, insertPhoneme, getStress);
-
-  for (var i = 0;i<phonemeindex.length;i++) {
-    if (phonemeindex[i] > 80) {
-      phonemeindex[i] = END;
-      // FIXME: When will this ever be anything else than END?
-      break; // error: delete all behind it
-    }
-  }
-
-  InsertBreath(getPhoneme, setPhoneme, insertPhoneme, getStress, getLength, setLength);
 
   {
     PrintPhonemes(phonemeindex, phonemeLength, stress);
@@ -2436,9 +2386,6 @@ function PrintPhonemes (phonemeindex, phonemeLength, stress) {
       if (phonemeindex[i] < 81) {
         return PhonemeNameTable[phonemeindex[i]];
       }
-      if (phoneme === BREAK) {
-        return '  ';
-      }
       return '??'
     };
     console.log(
@@ -2460,8 +2407,7 @@ function PrintPhonemes (phonemeindex, phonemeLength, stress) {
 var sampledConsonantValues0 = [0x18, 0x1A, 0x17, 0x17, 0x17];
 
 var stressPitch_tab47492 = [
-  0x00, 0x00, 0xE0, 0xE6, 0xEC, 0xF3, 0xF9, 0x00,
-  0x06, 0xC, 0x06
+  0x00, 0xE0, 0xE6, 0xEC, 0xF3, 0xF9, 0x00, 0x06, 0xC, 0x06
 ];
 
 // Used to decide which phoneme's blend lengths. The candidate with the lower score is selected.
@@ -2525,10 +2471,10 @@ var inBlendLength = [
 // 39: ZH    2           00000010
 // 40: V*    3           00000011
 // 41: DH    3           00000011
-// 43: **    114         01110010
-// 45: **    2           00000010
-// 67: **    27          00011011
-// 70: **    25          00011001
+// 43: CH'   114         01110010
+// 45: J'    2           00000010
+// 67: P'    27          00011011
+// 70: T'    25          00011001
 // tab45936
 var sampledConsonantFlags = [
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -2547,86 +2493,86 @@ var sampledConsonantFlags = [
 var frequencyData = [
 //tab45056 |tab451356 |tab45216
 //  freq1  |  freq2   |  freq3
-  0x000000 | 0x000000 | 0x000000,
-  0x000013 | 0x004300 | 0x5B0000,
-  0x000013 | 0x004300 | 0x5B0000,
-  0x000013 | 0x004300 | 0x5B0000,
-  0x000013 | 0x004300 | 0x5B0000,
-  0x00000A | 0x005400 | 0x6E0000,
-  0x00000E | 0x004800 | 0x5D0000,
-  0x000012 | 0x004200 | 0x5B0000,
-  0x000018 | 0x003E00 | 0x580000,
-  0x00001A | 0x002800 | 0x590000,
-  0x000016 | 0x002C00 | 0x570000,
-  0x000014 | 0x001E00 | 0x580000,
-  0x000010 | 0x002400 | 0x520000,
-  0x000014 | 0x002C00 | 0x590000,
-  0x00000E | 0x004800 | 0x5D0000,
-  0x000012 | 0x003000 | 0x3E0000,
-  0x00000E | 0x002400 | 0x520000,
-  0x000012 | 0x001E00 | 0x580000,
-  0x000012 | 0x003200 | 0x3E0000,
-  0x000010 | 0x002400 | 0x6E0000,
-  0x00000C | 0x001C00 | 0x500000,
-  0x00000E | 0x004400 | 0x5D0000,
-  0x00000A | 0x001800 | 0x5A0000,
-  0x000012 | 0x003200 | 0x3C0000,
-  0x00000E | 0x001E00 | 0x6E0000,
-  0x00000A | 0x001800 | 0x5A0000,
-  0x000008 | 0x005200 | 0x6E0000,
-  0x000006 | 0x002E00 | 0x510000,
-  0x000006 | 0x003600 | 0x790000,
-  0x000006 | 0x005600 | 0x650000,
-  0x000006 | 0x003600 | 0x790000,
-  0x000011 | 0x004300 | 0x5B0000,
-  0x000006 | 0x004900 | 0x630000,
-  0x000006 | 0x004F00 | 0x6A0000,
-  0x000006 | 0x001A00 | 0x510000,
-  0x000006 | 0x004200 | 0x790000,
-  0x00000E | 0x004900 | 0x5D0000,
-  0x000010 | 0x002500 | 0x520000,
-  0x000009 | 0x003300 | 0x5D0000,
-  0x00000A | 0x004200 | 0x670000,
-  0x000008 | 0x002800 | 0x4C0000,
-  0x00000A | 0x002F00 | 0x5D0000,
-  0x000006 | 0x004F00 | 0x650000,
-  0x000006 | 0x004F00 | 0x650000,
-  0x000006 | 0x004200 | 0x790000,
-  0x000005 | 0x004F00 | 0x650000,
-  0x000006 | 0x006E00 | 0x790000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000012 | 0x004800 | 0x5A0000,
-  0x00001A | 0x002600 | 0x580000,
-  0x000014 | 0x001E00 | 0x580000,
-  0x00001A | 0x002A00 | 0x580000,
-  0x000012 | 0x001E00 | 0x580000,
-  0x00000C | 0x002200 | 0x520000,
-  0x000006 | 0x001A00 | 0x510000,
-  0x000006 | 0x001A00 | 0x510000,
-  0x000006 | 0x001A00 | 0x510000,
-  0x000006 | 0x004200 | 0x790000,
-  0x000006 | 0x004200 | 0x790000,
-  0x000006 | 0x004200 | 0x790000,
-  0x000006 | 0x006E00 | 0x700000,
-  0x000006 | 0x006E00 | 0x6E0000,
-  0x000006 | 0x006E00 | 0x6E0000,
-  0x000006 | 0x005400 | 0x5E0000,
-  0x000006 | 0x005400 | 0x5E0000,
-  0x000006 | 0x005400 | 0x5E0000,
-  0x000006 | 0x001A00 | 0x510000,
-  0x000006 | 0x001A00 | 0x510000,
-  0x000006 | 0x001A00 | 0x510000,
-  0x000006 | 0x004200 | 0x790000,
-  0x000006 | 0x004200 | 0x790000,
-  0x000006 | 0x004200 | 0x790000,
-  0x000006 | 0x006D00 | 0x650000,
-  0x00000A | 0x005600 | 0x650000,
-  0x00000A | 0x006D00 | 0x700000,
-  0x000006 | 0x005400 | 0x5E0000,
-  0x000006 | 0x005400 | 0x5E0000,
-  0x000006 | 0x005400 | 0x5E0000,
-  0x00002C | 0x007F00 | 0x080000,
-  0x000013 | 0x007F00 | 0x010000
+  0x000000 | 0x000000 | 0x000000, // ' *' 00
+  0x000013 | 0x004300 | 0x5B0000, // '.*' 01
+  0x000013 | 0x004300 | 0x5B0000, // '?*' 02
+  0x000013 | 0x004300 | 0x5B0000, // ',*' 03
+  0x000013 | 0x004300 | 0x5B0000, // '-*' 04
+  0x00000A | 0x005400 | 0x6E0000, // 'IY' 05
+  0x00000E | 0x004900 | 0x5D0000, // 'IH' 06
+  0x000013 | 0x004300 | 0x5B0000, // 'EH' 07
+  0x000018 | 0x003F00 | 0x580000, // 'AE' 08
+  0x00001B | 0x002800 | 0x590000, // 'AA' 09
+  0x000017 | 0x002C00 | 0x570000, // 'AH' 10
+  0x000015 | 0x001F00 | 0x580000, // 'AO' 11
+  0x000010 | 0x002500 | 0x520000, // 'UH' 12
+  0x000014 | 0x002D00 | 0x590000, // 'AX' 13
+  0x00000E | 0x004900 | 0x5D0000, // 'IX' 14
+  0x000012 | 0x003100 | 0x3E0000, // 'ER' 15
+  0x00000E | 0x002400 | 0x520000, // 'UX' 16
+  0x000012 | 0x001E00 | 0x580000, // 'OH' 17
+  0x000012 | 0x003300 | 0x3E0000, // 'RX' 18
+  0x000010 | 0x002500 | 0x6E0000, // 'LX' 19
+  0x00000D | 0x001D00 | 0x500000, // 'WX' 20
+  0x00000F | 0x004500 | 0x5D0000, // 'YX' 21
+  0x00000B | 0x001800 | 0x5A0000, // 'WH' 22
+  0x000012 | 0x003200 | 0x3C0000, // 'R*' 23
+  0x00000E | 0x001E00 | 0x6E0000, // 'L*' 24
+  0x00000B | 0x001800 | 0x5A0000, // 'W*' 25
+  0x000009 | 0x005300 | 0x6E0000, // 'Y*' 26
+  0x000006 | 0x002E00 | 0x510000, // 'M*' 27
+  0x000006 | 0x003600 | 0x790000, // 'N*' 28
+  0x000006 | 0x005600 | 0x650000, // 'NX' 29
+  0x000006 | 0x003600 | 0x790000, // 'DX' 30
+  0x000011 | 0x004300 | 0x5B0000, // 'Q*' 31
+  0x000006 | 0x004900 | 0x630000, // 'S*' 32
+  0x000006 | 0x004F00 | 0x6A0000, // 'SH' 33
+  0x000006 | 0x001A00 | 0x510000, // 'F*' 34
+  0x000006 | 0x004200 | 0x790000, // 'TH' 35
+  0x00000E | 0x004900 | 0x5D0000, // '/H' 36
+  0x000010 | 0x002500 | 0x520000, // '/X' 37
+  0x000009 | 0x003300 | 0x5D0000, // 'Z*' 38
+  0x00000A | 0x004200 | 0x670000, // 'ZH' 39
+  0x000008 | 0x002800 | 0x4C0000, // 'V*' 40
+  0x00000A | 0x002F00 | 0x5D0000, // 'DH' 41
+  0x000006 | 0x004F00 | 0x650000, // 'CH' 42
+  0x000006 | 0x004F00 | 0x650000, // '**' 43
+  0x000006 | 0x004200 | 0x790000, // 'J*' 44
+  0x000005 | 0x004F00 | 0x650000, // '**' 45
+  0x000006 | 0x006E00 | 0x790000, // '**' 46
+  0x000000 | 0x000000 | 0x000000, // '**' 47
+  0x000013 | 0x004800 | 0x5A0000, // 'EY' 48
+  0x00001B | 0x002700 | 0x580000, // 'AY' 49
+  0x000015 | 0x001F00 | 0x580000, // 'OY' 50
+  0x00001B | 0x002B00 | 0x580000, // 'AW' 51
+  0x000012 | 0x001E00 | 0x580000, // 'OW' 52
+  0x00000D | 0x002200 | 0x520000, // 'UW' 53
+  0x000006 | 0x001A00 | 0x510000, // 'B*' 54
+  0x000006 | 0x001A00 | 0x510000, // '**' 55
+  0x000006 | 0x001A00 | 0x510000, // '**' 56
+  0x000006 | 0x004200 | 0x790000, // 'D*' 57
+  0x000006 | 0x004200 | 0x790000, // '**' 58
+  0x000006 | 0x004200 | 0x790000, // '**' 59
+  0x000006 | 0x006E00 | 0x700000, // 'G*' 60
+  0x000006 | 0x006E00 | 0x6E0000, // '**' 61
+  0x000006 | 0x006E00 | 0x6E0000, // '**' 62
+  0x000006 | 0x005400 | 0x5E0000, // 'GX' 63
+  0x000006 | 0x005400 | 0x5E0000, // '**' 64
+  0x000006 | 0x005400 | 0x5E0000, // '**' 65
+  0x000006 | 0x001A00 | 0x510000, // 'P*' 66
+  0x000006 | 0x001A00 | 0x510000, // '**' 67
+  0x000006 | 0x001A00 | 0x510000, // '**' 68
+  0x000006 | 0x004200 | 0x790000, // 'T*' 69
+  0x000006 | 0x004200 | 0x790000, // '**' 70
+  0x000006 | 0x004200 | 0x790000, // '**' 71
+  0x000006 | 0x006D00 | 0x650000, // 'K*' 72
+  0x00000A | 0x005600 | 0x650000, // '**' 73
+  0x00000A | 0x006D00 | 0x700000, // '**' 74
+  0x000006 | 0x005400 | 0x5E0000, // 'KX' 75
+  0x000006 | 0x005400 | 0x5E0000, // '**' 76
+  0x000006 | 0x005400 | 0x5E0000, // '**' 77
+  0x00002C | 0x007F00 | 0x080000, // 'UL' 78
+  0x000013 | 0x007F00 | 0x010000  // 'UM' 79
 ];
 
 /**
@@ -2637,86 +2583,86 @@ var frequencyData = [
  */
 var ampldata = [
 // ampl1   | ampl2    | ampl3
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x00000D | 0x000A00 | 0x080000,
-  0x00000D | 0x000B00 | 0x070000,
-  0x00000E | 0x000D00 | 0x080000,
-  0x00000F | 0x000E00 | 0x080000,
-  0x00000F | 0x000D00 | 0x010000,
-  0x00000F | 0x000C00 | 0x010000,
-  0x00000F | 0x000C00 | 0x000000,
-  0x00000F | 0x000B00 | 0x010000,
-  0x00000C | 0x000900 | 0x000000,
-  0x00000D | 0x000B00 | 0x070000,
-  0x00000C | 0x000B00 | 0x050000,
-  0x00000F | 0x000C00 | 0x010000,
-  0x00000F | 0x000C00 | 0x000000,
-  0x00000D | 0x000C00 | 0x060000,
-  0x00000D | 0x000800 | 0x010000,
-  0x00000D | 0x000800 | 0x000000,
-  0x00000E | 0x000C00 | 0x070000,
-  0x00000D | 0x000800 | 0x000000,
-  0x00000C | 0x000A00 | 0x050000,
-  0x00000D | 0x000800 | 0x010000,
-  0x00000D | 0x000800 | 0x000000,
-  0x00000D | 0x000A00 | 0x080000,
-  0x00000C | 0x000300 | 0x000000,
-  0x000009 | 0x000900 | 0x000000,
-  0x000009 | 0x000600 | 0x030000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x00000B | 0x000300 | 0x000000,
-  0x00000B | 0x000500 | 0x010000,
-  0x00000B | 0x000300 | 0x000000,
-  0x00000B | 0x000400 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000001 | 0x000000 | 0x000000,
-  0x00000B | 0x000500 | 0x010000,
-  0x000000 | 0x000A00 | 0x0E0000,
-  0x000002 | 0x000200 | 0x010000,
-  0x00000E | 0x000E00 | 0x090000,
-  0x00000F | 0x000D00 | 0x010000,
-  0x00000F | 0x000C00 | 0x000000,
-  0x00000F | 0x000D00 | 0x010000,
-  0x00000F | 0x000C00 | 0x000000,
-  0x00000D | 0x000800 | 0x000000,
-  0x000002 | 0x000000 | 0x000000,
-  0x000004 | 0x000100 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000002 | 0x000000 | 0x000000,
-  0x000004 | 0x000100 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000001 | 0x000000 | 0x000000,
-  0x000004 | 0x000100 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000001 | 0x000000 | 0x000000,
-  0x000004 | 0x000100 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x00000C | 0x000A00 | 0x070000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000000 | 0x000000,
-  0x000000 | 0x000A00 | 0x050000,
-  0x000000 | 0x000000 | 0x000000,
-  0x00000F | 0x000000 | 0x130000,
-  0x00000F | 0x000000 | 0x100000
+  0x000000 | 0x000000 | 0x000000, // ' *' 00
+  0x000000 | 0x000000 | 0x000000, // '.*' 01
+  0x000000 | 0x000000 | 0x000000, // '?*' 02
+  0x000000 | 0x000000 | 0x000000, // ',*' 03
+  0x000000 | 0x000000 | 0x000000, // '-*' 04
+  0x00000D | 0x000A00 | 0x080000, // 'IY' 05
+  0x00000D | 0x000B00 | 0x070000, // 'IH' 06
+  0x00000E | 0x000D00 | 0x080000, // 'EH' 07
+  0x00000F | 0x000E00 | 0x080000, // 'AE' 08
+  0x00000F | 0x000D00 | 0x010000, // 'AA' 09
+  0x00000F | 0x000C00 | 0x010000, // 'AH' 10
+  0x00000F | 0x000C00 | 0x000000, // 'AO' 11
+  0x00000F | 0x000B00 | 0x010000, // 'UH' 12
+  0x00000C | 0x000900 | 0x000000, // 'AX' 13
+  0x00000D | 0x000B00 | 0x070000, // 'IX' 14
+  0x00000C | 0x000B00 | 0x050000, // 'ER' 15
+  0x00000F | 0x000C00 | 0x010000, // 'UX' 16
+  0x00000F | 0x000C00 | 0x000000, // 'OH' 17
+  0x00000D | 0x000C00 | 0x060000, // 'RX' 18
+  0x00000D | 0x000800 | 0x010000, // 'LX' 19
+  0x00000D | 0x000800 | 0x000000, // 'WX' 20
+  0x00000E | 0x000C00 | 0x070000, // 'YX' 21
+  0x00000D | 0x000800 | 0x000000, // 'WH' 22
+  0x00000C | 0x000A00 | 0x050000, // 'R*' 23
+  0x00000D | 0x000800 | 0x010000, // 'L*' 24
+  0x00000D | 0x000800 | 0x000000, // 'W*' 25
+  0x00000D | 0x000A00 | 0x080000, // 'Y*' 26
+  0x00000C | 0x000300 | 0x000000, // 'M*' 27
+  0x000009 | 0x000900 | 0x000000, // 'N*' 28
+  0x000009 | 0x000600 | 0x030000, // 'NX' 29
+  0x000000 | 0x000000 | 0x000000, // 'DX' 30
+  0x000000 | 0x000000 | 0x000000, // 'Q*' 31
+  0x000000 | 0x000000 | 0x000000, // 'S*' 32
+  0x000000 | 0x000000 | 0x000000, // 'SH' 33
+  0x000000 | 0x000000 | 0x000000, // 'F*' 34
+  0x000000 | 0x000000 | 0x000000, // 'TH' 35
+  0x000000 | 0x000000 | 0x000000, // '/H' 36
+  0x000000 | 0x000000 | 0x000000, // '/X' 37
+  0x00000B | 0x000300 | 0x000000, // 'Z*' 38
+  0x00000B | 0x000500 | 0x010000, // 'ZH' 39
+  0x00000B | 0x000300 | 0x000000, // 'V*' 40
+  0x00000B | 0x000400 | 0x000000, // 'DH' 41
+  0x000000 | 0x000000 | 0x000000, // 'CH' 42
+  0x000000 | 0x000000 | 0x000000, // '**' 43
+  0x000001 | 0x000000 | 0x000000, // 'J*' 44
+  0x00000B | 0x000500 | 0x010000, // '**' 45
+  0x000000 | 0x000A00 | 0x0E0000, // '**' 46
+  0x000002 | 0x000200 | 0x010000, // '**' 47
+  0x00000E | 0x000E00 | 0x090000, // 'EY' 48
+  0x00000F | 0x000D00 | 0x010000, // 'AY' 49
+  0x00000F | 0x000C00 | 0x000000, // 'OY' 50
+  0x00000F | 0x000D00 | 0x010000, // 'AW' 51
+  0x00000F | 0x000C00 | 0x000000, // 'OW' 52
+  0x00000D | 0x000800 | 0x000000, // 'UW' 53
+  0x000002 | 0x000000 | 0x000000, // 'B*' 54
+  0x000004 | 0x000100 | 0x000000, // '**' 55
+  0x000000 | 0x000000 | 0x000000, // '**' 56
+  0x000002 | 0x000000 | 0x000000, // 'D*' 57
+  0x000004 | 0x000100 | 0x000000, // '**' 58
+  0x000000 | 0x000000 | 0x000000, // '**' 59
+  0x000001 | 0x000000 | 0x000000, // 'G*' 60
+  0x000004 | 0x000100 | 0x000000, // '**' 61
+  0x000000 | 0x000000 | 0x000000, // '**' 62
+  0x000001 | 0x000000 | 0x000000, // 'GX' 63
+  0x000004 | 0x000100 | 0x000000, // '**' 64
+  0x000000 | 0x000000 | 0x000000, // '**' 65
+  0x000000 | 0x000000 | 0x000000, // 'P*' 66
+  0x000000 | 0x000000 | 0x000000, // '**' 67
+  0x000000 | 0x000000 | 0x000000, // '**' 68
+  0x000000 | 0x000000 | 0x000000, // 'T*' 69
+  0x000000 | 0x000000 | 0x000000, // '**' 70
+  0x000000 | 0x000000 | 0x000000, // '**' 71
+  0x000000 | 0x000000 | 0x000000, // 'K*' 72
+  0x00000C | 0x000A00 | 0x070000, // '**' 73
+  0x000000 | 0x000000 | 0x000000, // '**' 74
+  0x000000 | 0x000000 | 0x000000, // 'KX' 75
+  0x000000 | 0x000A00 | 0x050000, // '**' 76
+  0x000000 | 0x000000 | 0x000000, // '**' 77
+  0x00000F | 0x000000 | 0x130000, // 'UL' 78
+  0x00000F | 0x000000 | 0x100000  // 'UM' 79
 ];
 
 // Sampled data for consonants, consisting of five 256-byte sections
@@ -2923,23 +2869,6 @@ var sampleTable = [
   0xFE, 0x01, 0xFC, 0x03, 0xE0, 0x0F, 0x00, 0xFC
 ];
 
-// mouth formants (F1) 5..29
-var mouthFormants5_29 = [
-  0, 0, 0, 0, 0, 10,
-  14, 19, 24, 27, 23, 21, 16, 20, 14, 18, 14, 18, 18,
-  16, 13, 15, 11, 18, 14, 11, 9, 6, 6, 6
-];
-// formant 1 frequencies (mouth) 48..53
-var mouthFormants48_53 = [19, 27, 21, 27, 18, 13];
-
-// throat formants (F2) 5..29
-var throatFormants5_29 = [
-  255, 255,
-  255, 255, 255, 84, 73, 67, 63, 40, 44, 31, 37, 45, 73, 49,
-  36, 30, 51, 37, 29, 69, 24, 50, 30, 24, 83, 46, 54, 86 ];
-// formant 2 frequencies (throat) 48..53
-var throatFormants48_53 = [72, 39, 31, 43, 30, 34];
-
 function trans(factor, initialFrequency) {
   return ((((factor & 0xFF) * (initialFrequency & 0xFF)) >> 8) & 0xFF) << 1;
 }
@@ -2947,16 +2876,13 @@ function trans(factor, initialFrequency) {
 /**
  * SAM's voice can be altered by changing the frequencies of the
  * mouth formant (F1) and the throat formant (F2). Only the
- * non-fricative voiced phonemes (5-29 and 48-53) are altered.
+ * vowel/diphthong and sonorant phonemes (5-29 and 48-53) are altered.
  *
  * This returns the three base frequency arrays.
  *
  * @return {Array}
  */
 function SetMouthThroat(mouth, throat) {
-  var initialFrequency;
-  var newFrequency = 0;
-  var pos = 5;
 
   var freqdata = [[],[],[]];
   frequencyData.map(function (v, i) {
@@ -2966,35 +2892,20 @@ function SetMouthThroat(mouth, throat) {
   });
 
   // recalculate formant frequencies 5..29 for the mouth (F1) and throat (F2)
-  while(pos < 30) {
+  for(var pos = 5; pos < 30; pos++) {
     // recalculate mouth frequency
-    initialFrequency = mouthFormants5_29[pos];
-    if (initialFrequency !== 0) {
-      newFrequency = trans(mouth, initialFrequency);
-    }
-    freqdata[0][pos] = newFrequency;
+    freqdata[0][pos] = trans(mouth, freqdata[0][pos]);
 
     // recalculate throat frequency
-    initialFrequency = throatFormants5_29[pos];
-    if(initialFrequency !== 0) {
-      newFrequency = trans(throat, initialFrequency);
-    }
-    freqdata[1][pos] = newFrequency;
-    pos++;
+    freqdata[1][pos] = trans(throat, freqdata[1][pos]);
   }
 
   // recalculate formant frequencies 48..53
-  pos = 0;
-  while(pos < 6) {
+  for(var pos$1 = 48; pos$1 < 54; pos$1++) {
     // recalculate F1 (mouth formant)
-    initialFrequency = mouthFormants48_53[pos];
-    newFrequency = trans(mouth, initialFrequency);
-    freqdata[0][pos+48] = newFrequency;
+    freqdata[0][pos$1] = trans(mouth, freqdata[0][pos$1]);
     // recalculate F2 (throat formant)
-    initialFrequency = throatFormants48_53[pos];
-    newFrequency = trans(throat, initialFrequency);
-    freqdata[1][pos+48] = newFrequency;
-    pos++;
+    freqdata[1][pos$1] = trans(throat, freqdata[1][pos$1]);
   }
 
   return freqdata;
@@ -3045,7 +2956,7 @@ function SetMouthThroat(mouth, throat) {
 function CreateTransitions(pitches, frequency, amplitude, tuples) {
   // 0=pitches
   // 1=frequency1
-  // 2=frequency[1]
+  // 2=frequency2
   // 3=frequency3
   // 4=amplitude1
   // 5=amplitude2
@@ -3061,10 +2972,10 @@ function CreateTransitions(pitches, frequency, amplitude, tuples) {
   };
 
   // linearly interpolate values
-  var interpolate = function (width, table, frame, mem53) {
-    var sign      = (mem53 < 0);
-    var remainder = Math.abs(mem53) % width;
-    var div       = (mem53 / width) | 0;
+  var interpolate = function (width, table, frame, change) {
+    var sign      = (change < 0);
+    var remainder = Math.abs(change) % width;
+    var div       = (change / width) | 0;
 
     var error = 0;
     var pos   = width;
@@ -3094,9 +3005,9 @@ function CreateTransitions(pitches, frequency, amplitude, tuples) {
     }
   };
 
-  var phase1;
-  var phase2;
-  var mem49 = 0;
+  var outBlendFrames;
+  var inBlendFrames;
+  var boundary = 0;
   for (var pos=0;pos<tuples.length - 1;pos++) {
     var phoneme      = tuples[pos][0];
     var next_phoneme = tuples[pos+1][0];
@@ -3108,24 +3019,24 @@ function CreateTransitions(pitches, frequency, amplitude, tuples) {
     // compare the rank - lower rank value is stronger
     if (rank === next_rank) {
       // same rank, so use out blend lengths from each phoneme
-      phase1 = outBlendLength[phoneme];
-      phase2 = outBlendLength[next_phoneme];
+      outBlendFrames = outBlendLength[phoneme];
+      inBlendFrames = outBlendLength[next_phoneme];
     } else if (rank < next_rank) {
-      // next phoneme is stronger, so us its blend lengths
-      phase1 = inBlendLength[next_phoneme];
-      phase2 = outBlendLength[next_phoneme];
+      // next phoneme is stronger, so use its blend lengths
+      outBlendFrames = inBlendLength[next_phoneme];
+      inBlendFrames = outBlendLength[next_phoneme];
     } else {
       // current phoneme is stronger, so use its blend lengths
       // note the out/in are swapped
-      phase1 = outBlendLength[phoneme];
-      phase2 = inBlendLength[phoneme];
+      outBlendFrames = outBlendLength[phoneme];
+      inBlendFrames = inBlendLength[phoneme];
     }
-    mem49 += tuples[pos][1];
-    var speedcounter = mem49 + phase2;
-    var phase3       = mem49 - phase1;
-    var transition   = phase1 + phase2; // total transition?
+    boundary += tuples[pos][1];
+    var trans_end    = boundary + inBlendFrames;
+    var trans_start  = boundary - outBlendFrames;
+    var trans_length = outBlendFrames + inBlendFrames; // total transition
 
-    if (((transition - 2) & 128) === 0) {
+    if (((trans_length - 2) & 128) === 0) {
       // unlike the other values, the pitches[] interpolates from
       // the middle of the current phoneme to the middle of the
       // next phoneme
@@ -3133,27 +3044,27 @@ function CreateTransitions(pitches, frequency, amplitude, tuples) {
       // half the width of the current and next phoneme
       var cur_width  = tuples[pos][1] >> 1;
       var next_width = tuples[pos+1][1] >> 1;
-      var pitch = pitches[next_width + mem49] - pitches[mem49 - cur_width];
-      // sum the values
-      interpolate(cur_width + next_width, 0, phase3, pitch);
+      var pitch = pitches[boundary + next_width] - pitches[boundary - cur_width];
+      // interpolate the values
+      interpolate(cur_width + next_width, 0, trans_start, pitch);
 
       for (var table = 1; table < 7;table++) {
         // tables:
-        // 0  pitches[]
+        // 0  pitches
         // 1  frequency1
-        // 2  frequency[1]
+        // 2  frequency2
         // 3  frequency3
         // 4  amplitude1
         // 5  amplitude2
         // 6  amplitude3
-        var value = Read(table, speedcounter) - Read(table, phase3);
-        interpolate(transition, table, phase3, value);
+        var value = Read(table, trans_end) - Read(table, trans_start);
+        interpolate(trans_length, table, trans_start, value);
       }
     }
   }
 
-  // add the length of this phoneme
-  return (mem49 + tuples[tuples.length - 1][1]) & 0xFF;
+  // add the length of last phoneme
+  return (boundary + tuples[tuples.length - 1][1]);
 }
 
 var RISING_INFLECTION = 255;
@@ -3232,7 +3143,7 @@ function CreateFrames (
     }
 
     // get the stress amount (more stress = higher pitch)
-    var phase1 = stressPitch_tab47492[tuples[i][2] + 1];
+    var phase1 = stressPitch_tab47492[tuples[i][2]];
     // get number of frames to write
     // copy from the source to the frames list
     for (var frames = tuples[i][1];frames > 0;frames--) {
@@ -3259,28 +3170,16 @@ function CreateFrames (
 function PrepareFrames(phonemes, pitch, mouth, throat, singmode) {
   var freqdata = SetMouthThroat(mouth, throat);
 
-  var sentences = [];
-
-  // Main render loop.
   var srcpos  = 0; // Position in source
-  // FIXME: should be tuple buffer as well.
   var tuples = [];
   var A;
   do {
     A = phonemes[srcpos];
     if (A[0]) {
-      if (A[0] === END || A[0] === BREAK) {
-        var sentence = Render(tuples);
-        if (sentence[0])
-          { sentences.push(sentence); }
-        tuples = [];
-      } else {
         tuples.push(A);
-      }
     }
     ++srcpos;
-  } while(A[0] !== END);
-  return sentences;
+  } while(srcpos < phonemes.length);
 
   /**
    * RENDER THE PHONEMES IN THE LIST
@@ -3296,23 +3195,17 @@ function PrepareFrames(phonemes, pitch, mouth, throat, singmode) {
    * 3. Offset the pitches by the fundamental frequency.
    *
    * 4. Render the each frame.
-   *
-   * @param {Array} tuples
    */
-  function Render (tuples) {
-    if (tuples.length === 0) {
-      return [0, [], [], [], []]; //exit if no data
-    }
 
     var ref = CreateFrames(
       pitch,
       tuples,
       freqdata
     );
-    var pitches = ref[0];
-    var frequency = ref[1];
-    var amplitude = ref[2];
-    var sampledConsonantFlag = ref[3];
+  var pitches = ref[0];
+  var frequency = ref[1];
+  var amplitude = ref[2];
+  var sampledConsonantFlag = ref[3];
 
     var t = CreateTransitions(
       pitches,
@@ -3338,21 +3231,20 @@ function PrepareFrames(phonemes, pitch, mouth, throat, singmode) {
     /*
      * RESCALE AMPLITUDE
      *
-     * Rescale volume from a linear scale to decibels.
+     * Rescale volume from decibels to the linear scale.
      */
     var amplitudeRescale = [
       0x00, 0x01, 0x02, 0x02, 0x02, 0x03, 0x03, 0x04,
-      0x04, 0x05, 0x06, 0x08, 0x09, 0x0B, 0x0D, 0x0F,
-      0x00  //17 elements?
-    ];
+      0x04, 0x05, 0x06, 0x08, 0x09, 0x0B, 0x0D, 0x0F ];
     for(var i$1 = amplitude[0].length - 1; i$1 >= 0; i$1--) {
       amplitude[0][i$1] = amplitudeRescale[amplitude[0][i$1]];
       amplitude[1][i$1] = amplitudeRescale[amplitude[1][i$1]];
       amplitude[2][i$1] = amplitudeRescale[amplitude[2][i$1]];
     }
 
-    return [t, frequency, pitches, amplitude, sampledConsonantFlag];
-  }
+  var result = [t, frequency, pitches, amplitude, sampledConsonantFlag];
+
+  return result;
 }
 
 function CreateOutputBuffer(buffersize) {
@@ -3368,11 +3260,11 @@ function CreateOutputBuffer(buffersize) {
   writer.ary = function (index, array) {
     // timetable for more accurate c64 simulation
     var timetable = [
-      [162, 167, 167, 127, 128],
-      [226, 60, 60, 0, 0],
-      [225, 60, 59, 0, 0],
-      [200, 0, 0, 54, 55],
-      [199, 0, 0, 54, 54]
+      [162, 167, 167, 127, 128],   // formants synth
+      [226, 60, 60, 0, 0],         // unvoiced sample 0
+      [225, 60, 59, 0, 0],         // unvoiced sample 1
+      [200, 0, 0, 54, 55],         // voiced sample 0
+      [199, 0, 0, 54, 54]          // voiced sample 1
     ];
     bufferpos += timetable[oldTimeTableIndex][index];
     if (((bufferpos / 50) | 0) > buffer.length) {
@@ -3449,7 +3341,7 @@ function RenderSample(Output, lastSampleOffset, consonantFlag, pitch) {
  * In traditional vocal synthesis, the glottal pulse drives filters, which
  * are attenuated to the frequencies of the formants.
  *
- * SAM generates these formants directly with sin and rectangular waves.
+ * SAM generates these formants directly with sine and rectangular waves.
  * To simulate them being driven by the glottal pulse, the waveforms are
  * reset at the beginning of each glottal pulse.
  */
@@ -3475,15 +3367,10 @@ function ProcessFrames(Output, frameCount, speed, frequency, pitches, amplitude,
       speedcounter = speed;
     } else {
       {
-        // Rectangle table consisting of:
+        // Rectangle wave consisting of:
         //   0-128 = 0x90
         // 128-255 = 0x70
 
-        // Remove multtable, replace with logical equivalent.
-        // Multtable stored the result of a 8-bit signed multiply of the upper nibble of sin/rect (interpreted as signed)
-        // and the amplitude lower nibble (interpreted as unsigned), then divided by two.
-        // On the 6510 this made sense, but in modern processors it's way faster and cleaner to simply do the multiply.
-        // simulate the glottal pulse and formants
         var ary = [];
         var /* unsigned int */ p1 = phase1 * 256; // Fixed point integers because we need to divide later on
         var /* unsigned int */ p2 = phase2 * 256;
@@ -3527,7 +3414,7 @@ function ProcessFrames(Output, frameCount, speed, frequency, pitches, amplitude,
         // within the first 75% of the glottal pulse?
         // is the count non-zero and the sampled flag is zero?
         if((mem38 !== 0) || (flags === 0)) {
-          // reset the phase of the formants to match the pulse
+          // update the phase of the formants
           // TODO: we should have a switch to disable this, it causes a pretty nice voice without the masking!
           phase1 = phase1 + frequency[0][pos] & 0xFF;
           phase2 = phase2 + frequency[1][pos] & 0xFF;
@@ -3579,20 +3466,17 @@ function Renderer(phonemes, pitch, mouth, throat, speed, singmode) {
     * speed | 0 // multiplied by speed.
   );
 
-  for (var i=0; i<sentences.length; i++) {
-    var ref = sentences[i];
-    var t = ref[0];
-    var frequency = ref[1];
-    var pitches = ref[2];
-    var amplitude = ref[3];
-    var sampledConsonantFlag = ref[4];
+    var t = sentences[0];
+  var frequency = sentences[1];
+  var pitches = sentences[2];
+  var amplitude = sentences[3];
+  var sampledConsonantFlag = sentences[4];
 
     {
       PrintOutput(pitches, frequency, amplitude, sampledConsonantFlag);
     }
 
     ProcessFrames(Output, t, speed, frequency, pitches, amplitude, sampledConsonantFlag);
-  }
 
   return Output.get();
 }

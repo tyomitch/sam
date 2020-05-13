@@ -29,7 +29,7 @@ import {
   FLAG_UNVOICED_STOPCONS,
 } from '../constants.es6'
 
-import {BREAK, END} from '../../common/constants.es6'
+const END = 255;
 
 import {text2Uint8Array} from '../../../src/util/util.es6';
 
@@ -719,39 +719,6 @@ function Code41240({phonemeindex, phonemeLength, stress}) {
  * @return undefined
  */
 function InsertBreath({phonemeindex, phonemeLength, stress}) {
-  let pausePos = 255;
-  let len = 0; // mem55
-  let phoneme; //variable Y
-  let pos = 0; // mem66
-
-  while(((phoneme = phonemeindex[pos]) !== END) && (pos<phonemeindex.length)) {
-    //pos48440:
-    phoneme = phonemeindex[pos];
-    len += phonemeLength[pos];
-    if (len < 232)
-    {
-      if (phoneme !== 254) // ML : Prevents an index out of bounds problem
-      {
-        // console.log("%s: flags2[%s] == %s&1 == %s\n", pos, phoneme, flags[phoneme], (flags[phoneme]&FLAG_DIPTHONG));
-        if((flags[phoneme]&FLAG_PUNCT) !== 0)
-        {
-          len = 0;
-          Insert({phonemeindex, phonemeLength, stress}, pos + 1, BREAK, 0, 0);
-          pos += 2;
-          continue;
-        }
-      }
-      if (phoneme === 0) { pausePos = pos; }
-      pos++;
-      continue;
-    }
-    phonemeindex[pausePos] = 31;   // 'Q*' glottal stop
-    phonemeLength[pausePos] = 4;
-    stress[pausePos] = 0;
-    len = 0;
-    Insert({phonemeindex, phonemeLength, stress}, pausePos + 1, BREAK, 0, 0);
-    pos = pausePos + 2;
-  }
 }
 
 /**
@@ -836,9 +803,6 @@ function PrintPhonemes ({phonemeindex, phonemeLength, stress}) {
     const name = (phoneme) => {
       if (phonemeindex[i] < 81) {
         return String.fromCharCode(signInputTable1[phonemeindex[i]], signInputTable2[phonemeindex[i]]);
-      }
-      if (phoneme === BREAK) {
-        return '  ';
       }
       return '??'
     };

@@ -1,5 +1,4 @@
 import {combinedPhonemeLengthTable} from './tables.es6';
-import {END} from '../common/constants.es6'
 
 /**
  * change phoneme length dependent on stress
@@ -13,7 +12,7 @@ import {END} from '../common/constants.es6'
 export default function SetPhonemeLength(getPhoneme, getStress, setLength) {
   let position = 0;
   let phoneme;
-  while((phoneme = getPhoneme(position)) !== END) {
+  while((phoneme = getPhoneme(position)) !== null) {
     let stress = getStress(position);
     if ((stress === 0) || (stress > 0x7F)) {
       setLength(position, combinedPhonemeLengthTable[phoneme] & 0xFF);

@@ -1,4 +1,3 @@
-import {END} from '../common/constants.es6'
 import { PhonemeNameTable } from './tables.es6';
 import { phonemeHasFlag } from './util.es6';
 import {
@@ -91,7 +90,7 @@ export default function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress
   let pos = -1;
   let phoneme;
 
-  while((phoneme = getPhoneme(++pos)) !== END) {
+  while((phoneme = getPhoneme(++pos)) !== null) {
     // Is phoneme pause?
     if (phoneme === 0) {
       continue;
@@ -137,9 +136,9 @@ export default function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress
       // RULE:
       //       <STRESSED VOWEL> <SILENCE> <STRESSED VOWEL> -> <STRESSED VOWEL> <SILENCE> Q <VOWEL>
       // EXAMPLE: AWAY EIGHT
-      if (!getPhoneme(pos+1)) { // If following phoneme is a pause, get next
+      if (getPhoneme(pos+1) === 0) { // If following phoneme is a pause, get next
         phoneme = getPhoneme(pos+2);
-        if (phoneme !== END && phonemeHasFlag(phoneme, FLAG_VOWEL) && getStress(pos+2)) {
+        if (phoneme !== null && phonemeHasFlag(phoneme, FLAG_VOWEL) && getStress(pos+2)) {
           if (process.env.DEBUG_SAM === true) {
             console.log(`${pos+2} RULE: Insert glottal stop between two stressed vowels with space between them`);
           }
@@ -149,7 +148,7 @@ export default function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress
       continue;
     }
 
-    let priorPhoneme = (pos === 0) ? END : getPhoneme(pos - 1);
+    let priorPhoneme = (pos === 0) ? null : getPhoneme(pos - 1);
 
     if (phoneme === pR) {
       // RULES FOR PHONEMES BEFORE R
@@ -200,7 +199,7 @@ export default function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress
       // Example: GO
       let phoneme = getPhoneme(pos + 1);
       // If diphthong ending with YX, move continue processing next phoneme
-      if (!phonemeHasFlag(phoneme, FLAG_DIP_YX) && (phoneme !== END)) {
+      if (!phonemeHasFlag(phoneme, FLAG_DIP_YX) && (phoneme !== null)) {
         // replace G with GX and continue processing next phoneme
         if (process.env.DEBUG_SAM === true) {
           console.log(
@@ -218,7 +217,7 @@ export default function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress
       // Example: COW
       let Y = getPhoneme(pos + 1);
       // If at end, replace current phoneme with KX
-      if (!phonemeHasFlag(Y, FLAG_DIP_YX) || Y === END) {
+      if (!phonemeHasFlag(Y, FLAG_DIP_YX) || Y === null) {
         // VOWELS AND DIPHTHONGS ENDING WITH IY SOUND flag set?
         if (process.env.DEBUG_SAM === true) {
           console.log(`${pos} K <VOWEL OR DIPTHONG NOT ENDING WITH IY> -> KX <VOWEL OR DIPTHONG NOT ENDING WITH IY>`);
@@ -255,7 +254,7 @@ export default function Parser2(insertPhoneme, setPhoneme, getPhoneme, getStress
       // Example: PARTY, TARDY
       if ((pos > 0) && phonemeHasFlag(getPhoneme(pos-1), FLAG_VOWEL)) {
         phoneme = getPhoneme(pos + 1);
-        if (!phoneme) {
+        if (phoneme === 0) {
           phoneme = getPhoneme(pos + 2);
         }
         if (phonemeHasFlag(phoneme, FLAG_VOWEL) && !getStress(pos+1)) {

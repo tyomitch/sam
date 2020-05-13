@@ -1,5 +1,4 @@
 import { assert } from 'chai'
-import {END} from '../../src/common/constants.es6'
 import loadFixture from '../fixture-reader.js';
 import Renderer from './c-conv/renderer.es6';
 
@@ -19,7 +18,7 @@ describe('c-conv/renderer.es6', () => {
               phonemeLength[i] = value.length[i];
               stress[i] = value.stress[i];
             }
-            phonemeindex[value.output.length] = END;
+            phonemeindex[value.output.length] = 255; // END
 
             const result = Renderer(phonemeindex, phonemeLength, stress);
             assert.notEqual(result, false, 'Renderer did not succeed');

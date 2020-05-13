@@ -1,11 +1,9 @@
-import {BREAK, END} from '../common/constants.es6'
 import {PhonemeNameTable} from './tables.es6';
 import Parser1 from './parse1.es6';
 import Parser2 from './parse2.es6';
 import AdjustLengths from './adjust-lengths.es6';
 import CopyStress from './copy-stress.es6';
 import SetPhonemeLength from './set-phoneme-length.es6';
-import InsertBreath from './insert-breath.es6';
 import ProlongPlosiveStopConsonantsCode41240 from './prolong-plosive-stop-consonants.es6';
 
 /**
@@ -27,7 +25,7 @@ export default function Parser (input) {
         throw new Error('Out of bounds: ' + pos)
       }
     }
-    return (pos === phonemeindex.length - 1) ? END : phonemeindex[pos]
+    return (pos === phonemeindex.length) ? null : phonemeindex[pos]
   };
   const setPhoneme = (pos, value) => {
     if (process.env.DEBUG_SAM === true) {
@@ -103,7 +101,6 @@ export default function Parser (input) {
       stress[pos - 1] = value; /* Set stress for prior phoneme */
     }
   );
-  phonemeindex[pos] = END;
 
   if (process.env.DEBUG_SAM === true) {
     PrintPhonemes(phonemeindex, phonemeLength, stress);
@@ -113,16 +110,6 @@ export default function Parser (input) {
   SetPhonemeLength(getPhoneme, getStress, setLength);
   AdjustLengths(getPhoneme, setLength, getLength);
   ProlongPlosiveStopConsonantsCode41240(getPhoneme, insertPhoneme, getStress);
-
-  for (let i = 0;i<phonemeindex.length;i++) {
-    if (phonemeindex[i] > 80) {
-      phonemeindex[i] = END;
-      // FIXME: When will this ever be anything else than END?
-      break; // error: delete all behind it
-    }
-  }
-
-  InsertBreath(getPhoneme, setPhoneme, insertPhoneme, getStress, getLength, setLength);
 
   if (process.env.DEBUG_SAM === true) {
     PrintPhonemes(phonemeindex, phonemeLength, stress);
@@ -154,9 +141,6 @@ function PrintPhonemes (phonemeindex, phonemeLength, stress) {
     const name = (phoneme) => {
       if (phonemeindex[i] < 81) {
         return PhonemeNameTable[phonemeindex[i]];
-      }
-      if (phoneme === BREAK) {
-        return '  ';
       }
       return '??'
     };

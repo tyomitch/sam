@@ -60,6 +60,7 @@ describe('renderer vs renderer-c', () => {
         phonemeLength[i] = v[1];
         stress[i] = v[2];
       });
+      phonemeindex[parsed.length] = 255; // END
 
       assert.notEqual(
         RendererC(phonemeindex, phonemeLength, stress),

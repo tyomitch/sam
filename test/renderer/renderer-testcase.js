@@ -1,5 +1,4 @@
 import { assert } from 'chai'
-import {END} from '../../src/common/constants.es6'
 import loadFixture from '../fixture-reader.js';
 import Renderer from '../../src/renderer/renderer.es6';
 
@@ -22,7 +21,7 @@ export default function (files) {
                 phonemeLength[i] = value.length[i];
                 stress[i] = value.stress[i];
               }
-              parsed.push([END, 0, 0]);
+              parsed.push([255, 0, 0]); // END
 
               const result = Renderer(parsed);
               assert.notEqual(result, false, 'Renderer did not succeed');

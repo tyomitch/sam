@@ -153,5 +153,5 @@ export default function CreateTransitions(pitches, frequency, amplitude, tuples)
   }
 
   // add the length of last phoneme
-  return (boundary + tuples[tuples.length - 1][1]) & 0xFF;
+  return (boundary + tuples[tuples.length - 1][1]);
 }

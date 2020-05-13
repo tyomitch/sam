@@ -27,9 +27,10 @@ import {
   rectangle
 } from './tables.es6';
 
-import {BREAK, END} from '../../../src/common/constants.es6'
+const END = 255;
 
 import UInt8 from '../../../src/types/UInt8.es6';
+import UInt16 from '../../../src/types/UInt16.es6';
 
 const PHONEME_PERIOD = 1;
 const PHONEME_QUESTION = 2;
@@ -177,9 +178,9 @@ function CreateFrames (
     }
   };
 
-  let X = new UInt8(0);
+  let X = new UInt16(0);
   let i = 0;
-  while(i < 256) {
+  while(i < phonemeIndexOutput.length) {
     // get the phoneme at the index
     let phoneme = phonemeIndexOutput[i];
 
@@ -338,7 +339,7 @@ function CreateTransitions(pitches, frequency, amplitude, phonemeIndexOutput, ph
 
   let phase1;
   let phase2;
-  let mem49 = new UInt8(0);
+  let mem49 = new UInt16(0);
   let pos = new UInt8(0);
   while(1) {
     let phoneme      = phonemeIndexOutput[pos.get()];
@@ -370,8 +371,8 @@ function CreateTransitions(pitches, frequency, amplitude, phonemeIndexOutput, ph
 
     mem49.inc(phonemeLengthOutput[pos.get()]);
 
-    let speedcounter = new UInt8(mem49.get() + phase2);
-    let phase3       = new UInt8(mem49.get() - phase1);
+    let speedcounter = new UInt16(mem49.get() + phase2);
+    let phase3       = new UInt16(mem49.get() - phase1);
     let transition   = new UInt8(phase1 + phase2); // total transition?
 
     if (((transition.get() - 2) & 128) === 0) {
@@ -396,7 +397,7 @@ function CreateTransitions(pitches, frequency, amplitude, phonemeIndexOutput, ph
   }
 
   // add the length of this phoneme
-  return (mem49.get() + phonemeLengthOutput[pos.get()]) & 0xFF;
+  return (mem49.get() + phonemeLengthOutput[pos.get()]);
 }
 
 /** ASSIGN PITCH CONTOUR
@@ -410,7 +411,7 @@ function CreateTransitions(pitches, frequency, amplitude, phonemeIndexOutput, ph
  *
  */
 function AssignPitchContour (pitches, frequency1) {
-  for(let i = 0; i < 256; i++) {
+  for(let i = 0; i < pitches.length; i++) {
     // subtract half the frequency of the formant 1.
     // this adds variety to the voice
     pitches[i] -= (frequency1[i] >> 1);
@@ -428,7 +429,7 @@ function RescaleAmplitude (amplitude) {
     0x04, 0x05, 0x06, 0x08, 0x09, 0x0B, 0x0D, 0x0F,
     0x00  //17 elements?
   ];
-  for(let i = 255; i >= 0; i--) {
+  for(let i = amplitude[0].length-1; i >= 0; i--) {
     amplitude[0][i] = amplitudeRescale[amplitude[0][i]];
     amplitude[1][i] = amplitudeRescale[amplitude[1][i]];
     amplitude[2][i] = amplitudeRescale[amplitude[2][i]];
@@ -480,14 +481,14 @@ export default function Renderer(phonemeindex, phonemeLength, stress, pitch, mou
 
   const freqdata = SetMouthThroat(mouth, throat);
 
-  const phonemeIndexOutput  = new Uint8Array(60);
-  const stressOutput        = new Uint8Array(60);
-  const phonemeLengthOutput = new Uint8Array(60);
-  const pitches             = new Uint8Array(256);
+  const phonemeIndexOutput  = new Uint8Array(256);
+  const stressOutput        = new Uint8Array(256);
+  const phonemeLengthOutput = new Uint8Array(256);
+  const pitches             = new Uint8Array(1024);
 
-  const frequency = [new Uint8Array(256), new Uint8Array(256), new Uint8Array(256)];
-  const amplitude = [new Uint8Array(256), new Uint8Array(256), new Uint8Array(256)];
-  const sampledConsonantFlag = new Uint8Array(256);
+  const frequency = [new Uint8Array(1024), new Uint8Array(1024), new Uint8Array(1024)];
+  const amplitude = [new Uint8Array(1024), new Uint8Array(1024), new Uint8Array(1024)];
+  const sampledConsonantFlag = new Uint8Array(1024);
 
   // Main render loop.
   let srcpos  = 0; // Position in source
@@ -505,11 +506,6 @@ export default function Renderer(phonemeindex, phonemeLength, stress, pitch, mou
             : new Uint8Array([].slice.call(Output.buffer).slice(0, Math.floor(Output.bufferpos / 50)));
         }
         return Output.buffer.slice(0, Math.floor(Output.bufferpos / 50));
-      case BREAK:
-        phonemeIndexOutput[destpos] = END;
-        Render(phonemeIndexOutput, phonemeLengthOutput, stressOutput);
-        destpos = 0;
-        break;
       case 0:
         break;
       default:

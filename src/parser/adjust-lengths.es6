@@ -3,8 +3,6 @@ import {
   phonemeFlags,
 } from './tables.es6';
 
-import {END} from '../common/constants.es6'
-
 import {
   FLAG_PUNCT,
   FLAG_NASAL,
@@ -52,7 +50,7 @@ export default function AdjustLengths(getPhoneme, setLength, getLength) {
   // increased by (length * 1.5) + 1
 
   // loop index
-  for (let position = 0;getPhoneme(position) !== END;position++) {
+  for (let position = 0;getPhoneme(position) !== null;position++) {
     // not punctuation?
     if(!phonemeHasFlag(getPhoneme(position), FLAG_PUNCT)) {
       continue;
@@ -89,7 +87,7 @@ export default function AdjustLengths(getPhoneme, setLength, getLength) {
   let loopIndex = -1;
   let phoneme;
 
-  while((phoneme = getPhoneme(++loopIndex)) !== END) {
+  while((phoneme = getPhoneme(++loopIndex)) !== null) {
     let position = loopIndex;
     // vowel?
     if (phonemeHasFlag(phoneme, FLAG_VOWEL)) {
@@ -117,7 +115,7 @@ export default function AdjustLengths(getPhoneme, setLength, getLength) {
       }
       // Got here if not <VOWEL>
       // FIXME: the case when phoneme === END is taken over by !phonemeHasFlag(phoneme, FLAG_CONSONANT)
-      let flags = (phoneme === END) ? (FLAG_CONSONANT | FLAG_UNVOICED_STOPCONS) : phonemeFlags[phoneme];
+      let flags = (phoneme === null) ? (FLAG_CONSONANT | FLAG_UNVOICED_STOPCONS) : phonemeFlags[phoneme];
       // Unvoiced
       if (!matchesBitmask(flags, FLAG_VOICED)) {
         // *, .*, ?*, ,*, -*, DX, S*, SH, F*, TH, /H, /X, CH, P*, T*, K*, KX
@@ -159,7 +157,7 @@ export default function AdjustLengths(getPhoneme, setLength, getLength) {
       // M*, N*, NX,
       phoneme = getPhoneme(++position);
       // is next phoneme a stop consonant?
-      if (phoneme !== END && phonemeHasFlag(phoneme, FLAG_STOPCONS)) {
+      if (phoneme !== null && phonemeHasFlag(phoneme, FLAG_STOPCONS)) {
         // B*, D*, G*, GX, P*, T*, K*, KX
         if (process.env.DEBUG_SAM === true) {
           console.log(`${position} RULE: <NASAL> <STOP CONSONANT> - set nasal = 5, consonant = 6`);
@@ -182,7 +180,7 @@ export default function AdjustLengths(getPhoneme, setLength, getLength) {
 
       while ((phoneme = getPhoneme(++position)) === 0) { /* move past silence */ }
       // if another stop consonant, process.
-      if (phoneme !== END && phonemeHasFlag(phoneme, FLAG_STOPCONS)) {
+      if (phoneme !== null && phonemeHasFlag(phoneme, FLAG_STOPCONS)) {
         // RULE: <STOP CONSONANT> {optional silence} <STOP CONSONANT>
         if (process.env.DEBUG_SAM === true) {
           console.log(

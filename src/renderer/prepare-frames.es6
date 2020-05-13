@@ -1,5 +1,3 @@
-import {BREAK, END} from '../common/constants.es6'
-
 import SetMouthThroat from './set-mouth-throat.es6'
 import CreateTransitions from './create-transitions.es6';
 import CreateFrames from './create-frames.es6';
@@ -7,32 +5,16 @@ import CreateFrames from './create-frames.es6';
 export default function PrepareFrames(phonemes, pitch, mouth, throat, singmode) {
   const freqdata = SetMouthThroat(mouth, throat);
 
-  let sentences = [];
-  if (process.env.NODE_ENV === 'karma-test') {
-    // Karma run, store data for karma retrieval.
-    sentences.freqdata = freqdata;
-  }
-
-  // Main render loop.
   let srcpos  = 0; // Position in source
-  // FIXME: should be tuple buffer as well.
   let tuples = [];
   let A;
   do {
     A = phonemes[srcpos];
     if (A[0]) {
-      if (A[0] === END || A[0] === BREAK) {
-        let sentence = Render(tuples);
-        if (sentence[0])
-          sentences.push(sentence);
-        tuples = [];
-      } else {
         tuples.push(A);
-      }
     }
     ++srcpos;
-  } while(A[0] !== END);
-  return sentences;
+  } while(srcpos < phonemes.length);
 
   /**
    * RENDER THE PHONEMES IN THE LIST
@@ -48,13 +30,7 @@ export default function PrepareFrames(phonemes, pitch, mouth, throat, singmode) 
    * 3. Offset the pitches by the fundamental frequency.
    *
    * 4. Render the each frame.
-   *
-   * @param {Array} tuples
    */
-  function Render (tuples) {
-    if (tuples.length === 0) {
-      return [0, [], [], [], []]; //exit if no data
-    }
 
     const [pitches, frequency, amplitude, sampledConsonantFlag] = CreateFrames(
       pitch,
@@ -98,6 +74,12 @@ export default function PrepareFrames(phonemes, pitch, mouth, throat, singmode) 
       amplitude[2][i] = amplitudeRescale[amplitude[2][i]];
     }
 
-    return [t, frequency, pitches, amplitude, sampledConsonantFlag];
+  let result = [t, frequency, pitches, amplitude, sampledConsonantFlag];
+
+  if (process.env.NODE_ENV === 'karma-test') {
+    // Karma run, store data for karma retrieval.
+    result.freqdata = freqdata;
   }
+
+  return result;
 }

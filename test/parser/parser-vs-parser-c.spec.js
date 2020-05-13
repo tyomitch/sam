@@ -55,7 +55,7 @@ describe('parser-vs-parser-c', () => {
         p1 = result.length - 1;
         for (p2 = 0;p2<resultC.phonemeindex.length;p2++) { if (resultC.phonemeindex[p2] === 255) break;}
 
-        assert.equal(p1, p2, 'Length mismatch');
+        assert.equal(p1, p2-1, 'Length mismatch');
 
         for (let i = 0;i<p1;i++) {
           assert.equal(result[i][0], resultC.phonemeindex[i], `phonemeindex mismatch at ${i}`);
