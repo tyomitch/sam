@@ -5,17 +5,6 @@ import CreateFrames from './create-frames.es6';
 export default function PrepareFrames(phonemes, pitch, mouth, throat, singmode) {
   const freqdata = SetMouthThroat(mouth, throat);
 
-  let srcpos  = 0; // Position in source
-  let tuples = [];
-  let A;
-  do {
-    A = phonemes[srcpos];
-    if (A[0]) {
-        tuples.push(A);
-    }
-    ++srcpos;
-  } while(srcpos < phonemes.length);
-
   /**
    * RENDER THE PHONEMES IN THE LIST
    *
@@ -34,7 +23,7 @@ export default function PrepareFrames(phonemes, pitch, mouth, throat, singmode) 
 
     const [pitches, frequency, amplitude, sampledConsonantFlag] = CreateFrames(
       pitch,
-      tuples,
+      phonemes,
       freqdata
     );
 
@@ -42,7 +31,7 @@ export default function PrepareFrames(phonemes, pitch, mouth, throat, singmode) 
       pitches,
       frequency,
       amplitude,
-      tuples
+      phonemes
     );
 
     if (!singmode) {

@@ -115,7 +115,8 @@ export default function Parser (input) {
     PrintPhonemes(phonemeindex, phonemeLength, stress);
   }
 
-  return phonemeindex.map((v, i) => [v, phonemeLength[i] | 0, stress[i] | 0]);
+  return phonemeindex.map((v, i) => v ? [v, phonemeLength[i] | 0, stress[i] | 0] : null)
+		     .filter(v => v);
 }
 
 /**

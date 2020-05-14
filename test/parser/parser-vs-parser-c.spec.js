@@ -51,20 +51,25 @@ describe('parser-vs-parser-c', () => {
         assert.notEqual(result, false, 'Parser did not succeed');
 
         // Seek 255 in result
-        let p1, p2;
-        p1 = result.length - 1;
-        for (p2 = 0;p2<resultC.phonemeindex.length;p2++) { if (resultC.phonemeindex[p2] === 255) break;}
+        let p1, p2, l2 = 0;
+        for (p2 = 0;p2<resultC.phonemeindex.length;p2++) {
+	  if (resultC.phonemeindex[p2] === 255) break;
+	  if (resultC.phonemeindex[p2]) l2++;
+	}
 
-        assert.equal(p1, p2-1, 'Length mismatch');
+        assert.equal(result.length, l2, 'Length mismatch');
 
-        for (let i = 0;i<p1;i++) {
-          assert.equal(result[i][0], resultC.phonemeindex[i], `phonemeindex mismatch at ${i}`);
+        for (p1 = 0, p2 = 0; p1 < l2; p1++) {
+          assert.equal(result[p1][0], resultC.phonemeindex[p2], `phonemeindex mismatch at ${p1}`);
+          while (!resultC.phonemeindex[++p2]) ;
         }
-        for (let i = 0;i<p1;i++) {
-          assert.equal(result[i][1], resultC.phonemeLength[i], `phonemeLength mismatch at ${i}`);
+        for (p1 = 0, p2 = 0; p1 < l2; p1++) {
+          assert.equal(result[p1][1], resultC.phonemeLength[p2], `phonemeLength mismatch at ${p1}`);
+          while (!resultC.phonemeindex[++p2]) ;
         }
-        for (let i = 0;i<p1;i++) {
-          assert.equal(result[i][2], resultC.stress[i], `stress mismatch at ${i}`);
+        for (p1 = 0, p2 = 0; p1 < l2; p1++) {
+          assert.equal(result[p1][2], resultC.stress[p2], `stress mismatch at ${p1}`);
+          while (!resultC.phonemeindex[++p2]) ;
         }
       });
     });
