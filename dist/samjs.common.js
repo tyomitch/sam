@@ -1,5 +1,5 @@
 /**
- * This is SamJs.js v0.1.1
+ * This is SamJs.js v0.1.2
  *
  * A Javascript port of "SAM Software Automatic Mouth".
  *
@@ -2140,7 +2140,7 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
       {
         console.log((position$1 + " RULE: <STOP CONSONANT> <LIQUID> - decrease by 2"));
       }
-      // decrease the phoneme length by 2 frames (20 ms)
+      // decrease the phoneme length by 2 frames
       setLength(position$1, getLength(position$1) - 2);
     }
   }
@@ -2359,7 +2359,8 @@ function Parser (input) {
     PrintPhonemes(phonemeindex, phonemeLength, stress);
   }
 
-  return phonemeindex.map(function (v, i) { return [v, phonemeLength[i] | 0, stress[i] | 0]; });
+  return phonemeindex.map(function (v, i) { return v ? [v, phonemeLength[i] | 0, stress[i] | 0] : null; })
+		     .filter(function (v) { return v; });
 }
 
 /**
@@ -2853,7 +2854,7 @@ var sampleTable = [
   0x99, 0xFC, 0x09, 0xB8, 0x0F, 0xF8, 0x00, 0x9D,
   0x24, 0x61, 0xF9, 0x0D, 0x00, 0xFD, 0x03, 0xF0,
   //4a0
-  0x1F, 0x90, 0x3F, 0x01, 0xF8, 0x1F, 0xD0, 0xF,
+  0x1F, 0x90, 0x3F, 0x01, 0xF8, 0x1F, 0xD0, 0x0F,
   0xF8, 0x37, 0x01, 0xF8, 0x07, 0xF0, 0x0F, 0xC0,
   0x3F, 0x00, 0xFE, 0x03, 0xF8, 0x0F, 0xC0, 0x3F,
   0x00, 0xFA, 0x03, 0xF0, 0x0F, 0x80, 0xFF, 0x01,
@@ -2870,7 +2871,7 @@ var sampleTable = [
 ];
 
 function trans(factor, initialFrequency) {
-  return ((((factor & 0xFF) * (initialFrequency & 0xFF)) >> 8) & 0xFF) << 1;
+  return (((factor * initialFrequency) >> 8) & 0xFF) << 1;
 }
 
 /**
@@ -2880,10 +2881,12 @@ function trans(factor, initialFrequency) {
  *
  * This returns the three base frequency arrays.
  *
+ * @param {Number} mouth  valid values: 0-255
+ * @param {Number} throat valid values: 0-255
+ *
  * @return {Array}
  */
 function SetMouthThroat(mouth, throat) {
-
   var freqdata = [[],[],[]];
   frequencyData.map(function (v, i) {
     freqdata[0][i] = v & 0xFF;
@@ -3104,7 +3107,8 @@ function AddInflection (inflection, pos, pitches) {
 /** CREATE FRAMES
  *
  * The length parameter in the list corresponds to the number of frames
- * to expand the phoneme to. Each frame represents 10 milliseconds of time.
+ * to expand the phoneme to. At the default speed, each frame represents
+ * about 10 milliseconds of time.
  * So a phoneme with a length of 7 = 7 frames = 70 milliseconds duration.
  *
  * The parameters are copied from the phoneme to the frame verbatim.
@@ -3170,24 +3174,12 @@ function CreateFrames (
 function PrepareFrames(phonemes, pitch, mouth, throat, singmode) {
   var freqdata = SetMouthThroat(mouth, throat);
 
-  var srcpos  = 0; // Position in source
-  var tuples = [];
-  var A;
-  do {
-    A = phonemes[srcpos];
-    if (A[0]) {
-        tuples.push(A);
-    }
-    ++srcpos;
-  } while(srcpos < phonemes.length);
-
   /**
    * RENDER THE PHONEMES IN THE LIST
    *
    * The phoneme list is converted into sound through the steps:
    *
-   * 1. Copy each phoneme <length> number of times into the frames list,
-   *    where each frame represents 10 milliseconds of sound.
+   * 1. Copy each phoneme <length> number of times into the frames list.
    *
    * 2. Determine the transitions lengths between phonemes, and linearly
    *    interpolate the values across the frames.
@@ -3199,7 +3191,7 @@ function PrepareFrames(phonemes, pitch, mouth, throat, singmode) {
 
     var ref = CreateFrames(
       pitch,
-      tuples,
+      phonemes,
       freqdata
     );
   var pitches = ref[0];
@@ -3211,7 +3203,7 @@ function PrepareFrames(phonemes, pitch, mouth, throat, singmode) {
       pitches,
       frequency,
       amplitude,
-      tuples
+      phonemes
     );
 
     if (!singmode) {
@@ -3346,7 +3338,7 @@ function RenderSample(Output, lastSampleOffset, consonantFlag, pitch) {
  * reset at the beginning of each glottal pulse.
  */
 function ProcessFrames(Output, frameCount, speed, frequency, pitches, amplitude, sampledConsonantFlag) {
-  var speedcounter = 72;
+  var speedcounter = speed;
   var phase1 = 0;
   var phase2 = 0;
   var phase3 = 0;
@@ -3459,11 +3451,11 @@ function Renderer(phonemes, pitch, mouth, throat, speed, singmode) {
 
   var sentences = PrepareFrames(phonemes, pitch, mouth, throat, singmode);
 
-  // Every frame is 20ms long.
+  // Reserve 176.4*speed samples (=8*speed ms) for each frame.
   var Output = CreateOutputBuffer(
-    441 // = (22050/50)
-    * phonemes.reduce(function (pre, v) { return pre + (v[1] * 20); }, 0) / 50 // Combined phoneme length in ms.
-    * speed | 0 // multiplied by speed.
+    176.4 // = (22050/125)
+    * phonemes.reduce(function (pre, v) { return pre + v[1]; }, 0) // Combined phoneme length in frames.
+    * speed | 0
   );
 
     var t = sentences[0];

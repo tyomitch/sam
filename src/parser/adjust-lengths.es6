@@ -207,7 +207,7 @@ export default function AdjustLengths(getPhoneme, setLength, getLength) {
       if (process.env.DEBUG_SAM === true) {
         console.log(`${position} RULE: <STOP CONSONANT> <LIQUID> - decrease by 2`);
       }
-      // decrease the phoneme length by 2 frames (20 ms)
+      // decrease the phoneme length by 2 frames
       setLength(position, getLength(position) - 2);
     }
   }

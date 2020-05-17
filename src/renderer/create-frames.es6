@@ -42,7 +42,8 @@ function AddInflection (inflection, pos, pitches) {
 /** CREATE FRAMES
  *
  * The length parameter in the list corresponds to the number of frames
- * to expand the phoneme to. Each frame represents 10 milliseconds of time.
+ * to expand the phoneme to. At the default speed, each frame represents
+ * about 10 milliseconds of time.
  * So a phoneme with a length of 7 = 7 frames = 70 milliseconds duration.
  *
  * The parameters are copied from the phoneme to the frame verbatim.

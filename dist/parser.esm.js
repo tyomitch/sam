@@ -1,5 +1,5 @@
 /**
- * This is SamJs.js v0.1.1
+ * This is SamJs.js v0.1.2
  *
  * A Javascript port of "SAM Software Automatic Mouth".
  *
@@ -1067,7 +1067,7 @@ function AdjustLengths(getPhoneme, setLength, getLength) {
       {
         console.log((position$1 + " RULE: <STOP CONSONANT> <LIQUID> - decrease by 2"));
       }
-      // decrease the phoneme length by 2 frames (20 ms)
+      // decrease the phoneme length by 2 frames
       setLength(position$1, getLength(position$1) - 2);
     }
   }
@@ -1286,7 +1286,8 @@ function Parser (input) {
     PrintPhonemes(phonemeindex, phonemeLength, stress);
   }
 
-  return phonemeindex.map(function (v, i) { return [v, phonemeLength[i] | 0, stress[i] | 0]; });
+  return phonemeindex.map(function (v, i) { return v ? [v, phonemeLength[i] | 0, stress[i] | 0] : null; })
+		     .filter(function (v) { return v; });
 }
 
 /**

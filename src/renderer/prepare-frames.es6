@@ -10,8 +10,7 @@ export default function PrepareFrames(phonemes, pitch, mouth, throat, singmode) 
    *
    * The phoneme list is converted into sound through the steps:
    *
-   * 1. Copy each phoneme <length> number of times into the frames list,
-   *    where each frame represents 10 milliseconds of sound.
+   * 1. Copy each phoneme <length> number of times into the frames list.
    *
    * 2. Determine the transitions lengths between phonemes, and linearly
    *    interpolate the values across the frames.

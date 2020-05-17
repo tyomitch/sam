@@ -21,11 +21,11 @@ export default function Renderer(phonemes, pitch, mouth, throat, speed, singmode
 
   const sentences = PrepareFrames(phonemes, pitch, mouth, throat, singmode);
 
-  // Every frame is 20ms long.
+  // Reserve 176.4*speed samples (=8*speed ms) for each frame.
   const Output = CreateOutputBuffer(
-    441 // = (22050/50)
-    * phonemes.reduce((pre, v) => pre + (v[1] * 20), 0) / 50 // Combined phoneme length in ms.
-    * speed | 0 // multiplied by speed.
+    176.4 // = (22050/125)
+    * phonemes.reduce((pre, v) => pre + v[1], 0) // Combined phoneme length in frames.
+    * speed | 0
   );
 
     const [t, frequency, pitches, amplitude, sampledConsonantFlag] = sentences;
